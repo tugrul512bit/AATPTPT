@@ -157,11 +157,13 @@
     <ClInclude Include="gpgpu\computer.h" />
     <ClInclude Include="gpgpu\context.h" />
     <ClInclude Include="gpgpu\device.h" />
+    <ClInclude Include="gpgpu\gpgpu.hpp" />
     <ClInclude Include="gpgpu\kernel.h" />
     <ClInclude Include="gpgpu\parameter.h" />
     <ClInclude Include="gpgpu\platform.h" />
     <ClInclude Include="gpgpu\task-queue.h" />
     <ClInclude Include="gpgpu\worker.h" />
+    <ClInclude Include="PlayArea.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
