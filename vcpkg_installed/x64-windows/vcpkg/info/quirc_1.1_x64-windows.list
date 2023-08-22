@@ -1,0 +1,16 @@
+x64-windows/
+x64-windows/debug/
+x64-windows/debug/lib/
+x64-windows/debug/lib/quirc.lib
+x64-windows/include/
+x64-windows/include/quirc.h
+x64-windows/lib/
+x64-windows/lib/quirc.lib
+x64-windows/share/
+x64-windows/share/quirc/
+x64-windows/share/quirc/copyright
+x64-windows/share/quirc/quirc-config-debug.cmake
+x64-windows/share/quirc/quirc-config-release.cmake
+x64-windows/share/quirc/quirc-config.cmake
+x64-windows/share/quirc/vcpkg.spdx.json
+x64-windows/share/quirc/vcpkg_abi_info.txt

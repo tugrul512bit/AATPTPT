@@ -1,0 +1,5 @@
+If you do not install the meta-port *opencv*, the package opencv4 is compatible with CMake
+if you set the OpenCV_DIR *before* the find_package call
+
+    set(OpenCV_DIR "${VCPKG_INSTALLED_DIR}/x64-windows/share/opencv4")
+    find_package(OpenCV REQUIRED)

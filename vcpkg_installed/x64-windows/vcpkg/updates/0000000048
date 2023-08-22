@@ -1,0 +1,7 @@
+Package: opencv4
+Feature: dnn
+Depends: protobuf
+Architecture: x64-windows
+Multi-Arch: same
+Description: Enable dnn module
+Status: install ok installed

@@ -113,6 +113,7 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -137,6 +138,30 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AATPTPT.cpp" />
+    <ClCompile Include="gpgpu\benchmark.cpp" />
+    <ClCompile Include="gpgpu\command-queue.cpp" />
+    <ClCompile Include="gpgpu\computer.cpp" />
+    <ClCompile Include="gpgpu\context.cpp" />
+    <ClCompile Include="gpgpu\device.cpp" />
+    <ClCompile Include="gpgpu\gpgpu_init.cpp" />
+    <ClCompile Include="gpgpu\kernel.cpp" />
+    <ClCompile Include="gpgpu\parameter.cpp" />
+    <ClCompile Include="gpgpu\platform.cpp" />
+    <ClCompile Include="gpgpu\task-queue.cpp" />
+    <ClCompile Include="gpgpu\worker.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\libGPGPU\gpgpu_init.hpp" />
+    <ClInclude Include="gpgpu\benchmark.h" />
+    <ClInclude Include="gpgpu\command-queue.h" />
+    <ClInclude Include="gpgpu\computer.h" />
+    <ClInclude Include="gpgpu\context.h" />
+    <ClInclude Include="gpgpu\device.h" />
+    <ClInclude Include="gpgpu\kernel.h" />
+    <ClInclude Include="gpgpu\parameter.h" />
+    <ClInclude Include="gpgpu\platform.h" />
+    <ClInclude Include="gpgpu\task-queue.h" />
+    <ClInclude Include="gpgpu\worker.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
