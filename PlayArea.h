@@ -43,7 +43,7 @@ public:
 
         // kernel for matter: falling sand
         _computer->compile(_defineMacros+R"(
-            // computes all except outermost 32cell-wide frame
+            // todo: compute 5x5 neighborhood
             kernel void computeSand(const global int * __restrict__ areaIn, global int * __restrict__ areaOut) 
             { 
                 const int id=get_global_id(0); 
