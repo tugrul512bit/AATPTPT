@@ -85,8 +85,8 @@ public:
 
     void AddSandToCursorPosition(int x, int y)
     {
-        for (int j = -3; j <= 3; j++)
-            for (int i = -3; i <= 3; i++)
+        for (int j = -5; j <= 5; j++)
+            for (int i = -5; i <= 5; i++)
                 if(x+i>=0 && x+i<_width && y+j>=0 && y+j<_height)
                     _areaIn->access<int>(x + i + (y + j) * _width) = 1;
     }
@@ -112,7 +112,7 @@ public:
                 }
             }
 
-        cv::putText(frame, std::to_string(_frameTime / 1000000000.0) + std::string(" seconds"), cv::Point2f(50, 50), 1, 5, cv::Scalar(50, 59, 69));
+        cv::putText(frame, std::to_string(_frameTime / 1000000000.0) + std::string(" seconds"), cv::Point2f(76, 76), 1, 5, cv::Scalar(50, 59, 69));
     }
 
 };
