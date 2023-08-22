@@ -46,7 +46,7 @@ int main()
             area.AddSandToCursorPosition(mouse.x, mouse.y);
         }
     
-        area.CalcFallingSand();
+        area.Calc();
         area.Render(frame);
         cv::imshow("AATPTPT", frame);
     }

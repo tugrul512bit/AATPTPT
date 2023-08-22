@@ -13,6 +13,7 @@ private:
     std::shared_ptr<GPGPU::HostParameter> _areaOut;
     std::shared_ptr<GPGPU::HostParameter> _parameters;
     std::string _defineMacros;
+    size_t _frameTime;
 public:
     // width and height must be multiple of 16
     PlayArea(int width, int height)
@@ -54,29 +55,33 @@ public:
                 int idBot = (y + 1) * PLAY_AREA_WIDTH + x;
                 int bot = (y<PLAY_AREA_HEIGHT-1 ? areaIn[idBot] : 0);
                 if(top == 1 && center == 0)
-                {
                     areaOut[id] = 1;
-                }
                 else if(top == 0 && center == 1 && bot == 0)
-                {
                     areaOut[id] = 0;
-                }
                 else if(top == 1 && center == 1 && bot == 0)
-                {
                     areaOut[id] = 1;
-                }
+                else if(top == 0 && center == 1 && bot == 1)
+                    areaOut[id] = 0;
                 else
                     areaOut[id] = areaIn[id];
              })", "computeSand");
 
     }
     
+    void Calc()
+    {
+        {
+            GPGPU::Bench bench(&_frameTime);
+            CalcFallingSand();
+        }
+    }
 
     void CalcFallingSand()
     {
         _computer->compute(*_parameters, "computeSand", 0, _totalCells, 256);
         _areaOut->copyDataToPtr(_areaIn->accessPtr<int>(0));
     }
+    
 
     void AddSandToCursorPosition(int x, int y)
     {
@@ -88,6 +93,7 @@ public:
 
     void Render(cv::Mat& frame)
     {
+
         for (int j = 0; j < frame.rows; j++)
             for (int i = 0; i < frame.cols; i++)
             {
@@ -105,6 +111,8 @@ public:
                     frame.at<cv::Vec3b>(i + j * _width).val[2] = 0;
                 }
             }
+
+        cv::putText(frame, std::to_string(_frameTime / 1000000000.0) + std::string(" seconds"), cv::Point2f(50, 50), 1, 5, cv::Scalar(50, 59, 69));
     }
 
 };
