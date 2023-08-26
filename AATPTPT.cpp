@@ -30,13 +30,16 @@ static void click(int event, int x, int y, int flags, void* param)
     return;
 }
 
+
 int main()
 {
+
     int w = 1280;
     int h = 800;
     Mouse mouse;
     cv::Mat frame(h, w,CV_8UC3);
     PlayArea area(w,h);
+    area.Reset();
     std::cout << "Hello World!\n";
     cv::namedWindow("AATPTPT");
     cv::setMouseCallback("AATPTPT", click, &mouse);
