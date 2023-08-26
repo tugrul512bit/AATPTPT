@@ -87,6 +87,8 @@ public:
 
         )";
 
+
+
         _computer->compile(_defineMacros + R"(
            kernel void computePositionTarget(
                 const global int * __restrict__ areaIn,
@@ -103,6 +105,11 @@ public:
                 if(areaIn[id]>0 && temperatureIn[id] > motionPossibility)
                 {                                        
                     newPos = 1 + (positionPossibility/0.25f); // 1 = top, 2 = right, 3 = bot, 4 = left
+                }
+                else if(areaIn[id]>0)
+                {
+                    // gravity
+                    newPos = 3;
                 }
                 else if(areaIn[id] == 0)
                 {
