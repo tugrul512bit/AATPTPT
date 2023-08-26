@@ -34,8 +34,8 @@ static void click(int event, int x, int y, int flags, void* param)
 int main()
 {
 
-    int w = 800;
-    int h = 600;
+    int w = 1600;
+    int h = 900;
     Mouse mouse;
     cv::Mat frame(h, w,CV_8UC3);
     PlayArea area(w,h);

@@ -14,9 +14,11 @@ private:
     std::shared_ptr<GPGPU::HostParameter> _temperatureIn;
     std::shared_ptr<GPGPU::HostParameter> _temperatureOut;
     std::shared_ptr<GPGPU::HostParameter> _randomSeedIn;
-    std::shared_ptr<GPGPU::HostParameter> _randomSeedOut;
+    std::shared_ptr<GPGPU::HostParameter> _randomSeedState;
     std::shared_ptr<GPGPU::HostParameter> _targetPositionIn;
     std::shared_ptr<GPGPU::HostParameter> _targetPositionOut;
+
+    std::shared_ptr<GPGPU::HostParameter> _parametersRandomInit;
     std::shared_ptr<GPGPU::HostParameter> _parametersComputeTargetPosition;
     std::shared_ptr<GPGPU::HostParameter> _parameters;
 
@@ -39,22 +41,26 @@ public:
 
         // broadcast type input (duplicated on all gpus from ram)
         // load-balanced output
-        _areaIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<int>("areaIn", _totalCells));
-        _areaOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<int>("areaOut", _totalCells));
-        _temperatureIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<float>("temperatureIn", _totalCells));
-        _temperatureOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<float>("temperatureOut", _totalCells));
+        _areaIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("areaIn", _totalCells));
+        _areaOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("areaOut", _totalCells));
+        _temperatureIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("temperatureIn", _totalCells));
+        _temperatureOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("temperatureOut", _totalCells));
         _randomSeedIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned int>("randomSeedIn", _totalCells));
-        _randomSeedOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned int>("randomSeedOut", _totalCells));
+        _randomSeedState = std::make_shared<GPGPU::HostParameter>(_computer->createArrayState<unsigned int>("randomSeedState", _totalCells));
         _targetPositionIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("targetPositionIn", _totalCells));
         _targetPositionOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("targetPositionOut", _totalCells));
 
+        _parametersRandomInit = std::make_shared<GPGPU::HostParameter>(
+            _randomSeedIn->next(*_randomSeedState)
+        );
+
         _parametersComputeTargetPosition = std::make_shared<GPGPU::HostParameter>(
-            _areaIn->next(*_temperatureIn).next(*_randomSeedIn).next(*_randomSeedOut).next(*_targetPositionOut)
+            _areaIn->next(*_temperatureIn).next(*_randomSeedState).next(*_targetPositionOut)
         );
 
 
         _parameters = std::make_shared<GPGPU::HostParameter>(
-            _areaIn->next(*_areaOut).next(*_temperatureIn).next(*_temperatureOut).next(*_randomSeedIn).next(*_randomSeedOut).next(*_targetPositionIn)
+            _areaIn->next(*_areaOut).next(*_temperatureIn).next(*_temperatureOut).next(*_randomSeedState).next(*_targetPositionIn)
         );
 
         _defineMacros = std::string("#define PLAY_AREA_WIDTH ") + std::to_string(_width) + R"(
@@ -87,21 +93,37 @@ public:
 
         )";
 
-
+        _computer->compile(_defineMacros + R"(
+            kernel void initRandomSeed(
+                const global unsigned int * __restrict__ randomSeedIn,
+                global unsigned int * __restrict__ randomSeedState
+            )
+            {
+                const int id=get_global_id(0);  
+                const int N = get_global_size(0);
+                const int nLoop = 1 + ((PLAY_AREA_WIDTH * PLAY_AREA_HEIGHT)  / N);
+                for(int i=0;i<nLoop;i++)
+                {
+                    int idLoop = i * N + id%N;
+                    if(idLoop < PLAY_AREA_WIDTH * PLAY_AREA_HEIGHT)
+                        randomSeedState[idLoop]=randomSeedIn[idLoop];
+                }
+            }
+        )", "initRandomSeed");
 
         _computer->compile(_defineMacros + R"(
            kernel void computePositionTarget(
-                const global int * __restrict__ areaIn,
-                const global float * __restrict__ temperatureIn,
-                const global unsigned int * __restrict__ randomSeedIn, global unsigned int * __restrict__ randomSeedOut,
+                const global unsigned char * __restrict__ areaIn,
+                const global unsigned char * __restrict__ temperatureIn,
+                global unsigned int * __restrict__ randomSeedState,
                 global unsigned char * __restrict__ targetPositionOut
             )
             {
                 const int id=get_global_id(0);                                 
-                unsigned int randomSeed = randomSeedIn[id];
-                float motionPossibility = randomFloat(&randomSeed);
+                unsigned int randomSeed = randomSeedState[id];
+                float motionPossibility = randomFloat(&randomSeed) * 255;
                 unsigned char newPos = 0;   
-                float positionPossibility = randomFloat(&randomSeed);             
+                float positionPossibility = randomFloat(&randomSeed); 
                 if(areaIn[id]>0 && temperatureIn[id] > motionPossibility)
                 {                                        
                     newPos = 1 + (positionPossibility/0.25f); // 1 = top, 2 = right, 3 = bot, 4 = left
@@ -116,7 +138,7 @@ public:
                     // 100+ means selecting which source to accept (when it is empty)
                     newPos = 101 + (positionPossibility/0.25f); //  101= top, 102 = right, 103 = bot, 104 = left
                 }
-                randomSeedOut[id]=randomSeed;
+                randomSeedState[id]=randomSeed;
                 targetPositionOut[id]=newPos;
             }
         )","computePositionTarget");
@@ -126,33 +148,33 @@ public:
 
             // todo: compute 5x5 neighborhood
             kernel void computeSand(
-                const global int * __restrict__ areaIn, global int * __restrict__ areaOut,
-                const global float * __restrict__ temperatureIn, global float * __restrict__ temperatureOut,
-                const global unsigned int * __restrict__ randomSeedIn, global unsigned int * __restrict__ randomSeedOut,
+                const global unsigned char * __restrict__ areaIn, global unsigned char * __restrict__ areaOut,
+                const global unsigned char * __restrict__ temperatureIn, global unsigned char * __restrict__ temperatureOut,
+                global unsigned int * __restrict__ randomSeedState,
                 const global unsigned char * __restrict__ targetPositionIn
             ) 
             { 
                 const int id=get_global_id(0); 
                 const int x = id % PLAY_AREA_WIDTH;
                 const int y = id / PLAY_AREA_WIDTH;
-                unsigned int randomSeed = randomSeedIn[id];
+                unsigned int randomSeed = randomSeedState[id];
                 int idTop = (y - 1) * PLAY_AREA_WIDTH + x;
-                int top = (y>0 ? areaIn[idTop] : 0);
+                unsigned char top = (y>0 ? areaIn[idTop] : 0);
                 unsigned char targetTop = (y>0 ? targetPositionIn[idTop] : 0);
 
                 int idLeft = y * PLAY_AREA_WIDTH + (x-1);
-                int left =(x>0 ? areaIn[idLeft] : 0);                                                
+                unsigned char left =(x>0 ? areaIn[idLeft] : 0);                                                
                 unsigned char targetLeft =(x>0 ? targetPositionIn[idLeft] : 0);                                                
 
                 int idRight = y * PLAY_AREA_WIDTH + (x+1);
-                int right =(x<PLAY_AREA_WIDTH-1 ? areaIn[idRight] : 0);             
+                unsigned char right =(x<PLAY_AREA_WIDTH-1 ? areaIn[idRight] : 0);             
                 unsigned char targetRight =(x<PLAY_AREA_WIDTH-1 ? targetPositionIn[idRight] : 0);
 
-                int center = areaIn[id];
+                unsigned char center = areaIn[id];
                 unsigned char targetAccepted = targetPositionIn[id];
 
                 int idBot = (y + 1) * PLAY_AREA_WIDTH + x;
-                int bot = (y<PLAY_AREA_HEIGHT-1 ? areaIn[idBot] : 0);
+                unsigned char bot = (y<PLAY_AREA_HEIGHT-1 ? areaIn[idBot] : 0);
                 unsigned char targetBot = (y<PLAY_AREA_HEIGHT-1 ? targetPositionIn[idBot] : 0);
 
                 if (center == 1)
@@ -215,10 +237,10 @@ public:
                     else
                     {
                         areaOut[id]=0;
-                        temperatureOut[id]=0.0f;
+                        temperatureOut[id]=0;
                     }
                 }
-                randomSeedOut[id]=randomSeed;
+                randomSeedState[id]=randomSeed;
              })", "computeSand");
 
 
@@ -227,13 +249,15 @@ public:
     
     void Reset()
     {
+        
         for (int i = 0; i < _width * _height; i++)
         {
-            _areaIn->access<int>(i) = 0;
-            _temperatureIn->access<float>(i) = 0.0f;
-            _randomSeedIn->access<int>(i) = i;
+            _areaIn->access<unsigned char>(i) = 0;
+            _temperatureIn->access<unsigned char>(i) = 0.0f;
+            _randomSeedIn->access<unsigned int>(i) = i;
             _targetPositionIn->access<unsigned char>(i) = 0;
         }
+        _computer->compute(*_parametersRandomInit, "initRandomSeed", 0, _totalCells, 256);
     }
 
     void Calc()
@@ -248,13 +272,11 @@ public:
     void CalcFallingSand()
     {
         _computer->compute(*_parametersComputeTargetPosition, "computePositionTarget", 0, _totalCells, 256);
-        _randomSeedOut->copyDataToPtr(_randomSeedIn->accessPtr<unsigned int>(0));
         _targetPositionOut->copyDataToPtr(_targetPositionIn->accessPtr<unsigned char>(0));
 
         _computer->compute(*_parameters, "computeSand", 0, _totalCells, 256);
-        _areaOut->copyDataToPtr(_areaIn->accessPtr<int>(0));
-        _temperatureOut->copyDataToPtr(_temperatureIn->accessPtr<float>(0));
-        _randomSeedOut->copyDataToPtr(_randomSeedIn->accessPtr<unsigned int>(0));
+        _areaOut->copyDataToPtr(_areaIn->accessPtr<unsigned char>(0));
+        _temperatureOut->copyDataToPtr(_temperatureIn->accessPtr<unsigned char>(0));
     }
 
 
@@ -266,8 +288,8 @@ public:
                 if (x + i >= 0 && x + i < _width && y + j >= 0 && y + j < _height)
                 {
                     auto id = x + i + (y + j) * _width;
-                    _areaIn->access<int>(id) = 1;
-                    _temperatureIn->access<float>(id) = 0.5f;
+                    _areaIn->access<unsigned char>(id) = 1;
+                    _temperatureIn->access<unsigned char>(id) = 0.35f * 255;
                 }
     }
 
@@ -277,7 +299,7 @@ public:
         for (int j = 0; j < frame.rows; j++)
             for (int i = 0; i < frame.cols; i++)
             {
-                int matter = _areaOut->access<int>(i + j * _width);
+                unsigned char matter = _areaOut->access<unsigned char>(i + j * _width);
                 if (matter == 1)
                 {
                     frame.at<cv::Vec3b>(i + j * _width).val[0] = 100;
