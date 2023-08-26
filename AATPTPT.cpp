@@ -39,7 +39,7 @@ int main()
     Mouse mouse;
     cv::Mat frame(h, w,CV_8UC3);
     PlayArea area(w,h);
-    area.Reset();
+ 
     std::cout << "Hello World!\n";
     cv::namedWindow("AATPTPT");
     cv::setMouseCallback("AATPTPT", click, &mouse);

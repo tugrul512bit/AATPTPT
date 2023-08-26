@@ -126,36 +126,41 @@ public:
                 unsigned int randomSeed = randomSeedIn[id];
                 int idTop = (y - 1) * PLAY_AREA_WIDTH + x;
                 int top = (y>0 ? areaIn[idTop] : 0);
+                unsigned char targetTop = (y>0 ? targetPositionIn[idTop] : -1);
 
                 int idLeft = y * PLAY_AREA_WIDTH + (x-1);
                 int left =(x>0 ? areaIn[idLeft] : 0);                                                
+                unsigned char targetLeft =(x>0 ? targetPositionIn[idLeft] : -1);                                                
 
                 int idRight = y * PLAY_AREA_WIDTH + (x+1);
                 int right =(x<PLAY_AREA_WIDTH-1 ? areaIn[idRight] : 0);             
+                unsigned char targetRight =(x<PLAY_AREA_WIDTH-1 ? targetPositionIn[idRight] : -1);             
 
                 int center = areaIn[id];
 
                 int idBot = (y + 1) * PLAY_AREA_WIDTH + x;
                 int bot = (y<PLAY_AREA_HEIGHT-1 ? areaIn[idBot] : 0);
+                unsigned char targetBot = (y<PLAY_AREA_HEIGHT-1 ? targetPositionIn[idBot] : -1);
 
                 if (center == 1)
                 {
-                    if(targetPositionIn[id] == 0 && top == 0)
+                    unsigned char targetPos = targetPositionIn[id];
+                    if(targetPos == 0 && top == 0)
                     {   
                         areaOut[id]=0;
                         temperatureOut[id]=0;
                     }
-                    else if(targetPositionIn[id] == 1 && right == 0)
+                    else if(targetPos == 1 && right == 0)
                     {
                         areaOut[id]=0;
                         temperatureOut[id]=0;
                     }
-                    else if(targetPositionIn[id] == 2 && bot == 0)
+                    else if(targetPos == 2 && bot == 0)
                     {
                         areaOut[id]=0;
                         temperatureOut[id]=0;
                     }
-                    else if(targetPositionIn[id] == 3 && left == 0)
+                    else if(targetPos == 3 && left == 0)
                     {
                         areaOut[id]=0;
                         temperatureOut[id]=0;
@@ -171,32 +176,33 @@ public:
                 {
                     // if top cell is filled and its going down
                     int sourceId = -1;                    
-                    if(top == 1 && targetPositionIn[idTop] == 2)
+                    if(top == 1 && targetTop == 2)
                     {
                         sourceId = idTop;
                     }
-                    else if(right == 1 && targetPositionIn[idRight] == 3)
+                    else if(right == 1 && targetRight == 3)
                     {
                         sourceId = idRight;
                     }
-                    else if(bot == 1 && targetPositionIn[idBot] == 0)
+                    else if(bot == 1 && targetBot == 0)
                     {
                         sourceId = idBot;
                     }
-                    else if(left == 1 && targetPositionIn[idRight] == 1)
+                    else if(left == 1 && targetLeft == 1)
                     {
                         sourceId = idLeft;
                     }
             
                     if(sourceId != -1)
                     {
+                     
                         areaOut[id] = areaIn[sourceId];
                         temperatureOut[id] = temperatureIn[sourceId];
                     }
                     else
                     {
-                        areaOut[id]=center;
-                        temperatureOut[id]=temperatureIn[id];
+                        areaOut[id]=0;
+                        temperatureOut[id]=0.0f;
                     }
                 }
                 randomSeedOut[id]=randomSeed;
