@@ -40,7 +40,8 @@ int main()
 
 
     int maxGPUs = 2; // some systems have duplicated drivers that become an issue for pcie-bandwidth utilization. To limit maximum number of gpus to use, use this value.
-    PlayArea area(w,h,maxGPUs);
+    int stepsPerFrame = 3;
+    PlayArea area(w,h,maxGPUs,stepsPerFrame);
     
 
     std::cout << "Hello World!\n";

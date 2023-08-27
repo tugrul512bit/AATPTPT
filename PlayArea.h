@@ -25,11 +25,13 @@ private:
     std::shared_ptr<GPGPU::HostParameter> _parameters;
     std::string _defineMacros;
     size_t _frameTime;
+    int _numComputePerFrame;
 public:
     // width and height must be multiple of 16
-    PlayArea(int & width, int & height, int maximumGPUsToUse = 10)
+    PlayArea(int & width, int & height, int maximumGPUsToUse = 10, int numStepsPerFrame=10)
     {
         cv::namedWindow("AATPTPT");
+        _numComputePerFrame = numStepsPerFrame;
         _width = width;
         _height = height;
         while (_width % 16 != 0)
@@ -356,7 +358,7 @@ public:
     {
         {
             GPGPU::Bench bench(&_frameTime);
-            for(int i=0;i<5;i++)
+            for(int i=0;i< _numComputePerFrame;i++)
                 CalcFallingSand();            
         }
     } 
@@ -381,7 +383,7 @@ public:
                 {
                     auto id = x + i + (y + j) * _width;
                     _areaIn->access<unsigned char>(id) = 1;
-                    _temperatureIn->access<unsigned char>(id) = 0.25f * 255;
+                    _temperatureIn->access<unsigned char>(id) = 0.55f * 255;
                 }
     }
 
@@ -423,7 +425,7 @@ public:
             }
             for (auto& e : thr)
                 e.join();
-            cv::putText(frame, std::string("compute: ") + std::to_string(0.2*_frameTime / 1000000000.0) + std::string(" seconds"), cv::Point2f(76, 76), 1, 5, cv::Scalar(50, 59, 69));
+            cv::putText(frame, std::string("compute: ") + std::to_string((1.0/ _numComputePerFrame)*_frameTime / 1000000000.0) + std::string(" seconds"), cv::Point2f(76, 76), 1, 5, cv::Scalar(50, 59, 69));
             cv::imshow("AATPTPT", frame);
 
         }
