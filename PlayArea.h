@@ -383,7 +383,7 @@ public:
                 {
                     auto id = x + i + (y + j) * _width;
                     _areaIn->access<unsigned char>(id) = 1;
-                    _temperatureIn->access<unsigned char>(id) = 0.55f * 255;
+                    _temperatureIn->access<unsigned char>(id) = 0.6f * 255;
                 }
     }
 
@@ -425,12 +425,11 @@ public:
             }
             for (auto& e : thr)
                 e.join();
-            cv::putText(frame, std::string("compute: ") + std::to_string((1.0/ _numComputePerFrame)*_frameTime / 1000000000.0) + std::string(" seconds"), cv::Point2f(76, 76), 1, 5, cv::Scalar(50, 59, 69));
+            cv::putText(frame, std::string("compute(")+std::to_string(_numComputePerFrame) + std::string(" steps): ") + std::to_string(_frameTime / 1000000000.0) + std::string(" seconds"), cv::Point2f(46, 76), 1, 5, cv::Scalar(50, 59, 69));
             cv::imshow("AATPTPT", frame);
 
         }
 
-        std::cout << "render: " << ti / 1000000000.0 << "s" << std::endl;
      
 
     }
