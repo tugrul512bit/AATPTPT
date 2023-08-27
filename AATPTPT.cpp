@@ -38,7 +38,9 @@ int main()
     int h = 900;
     Mouse mouse;
     cv::Mat frame(h, w,CV_8UC3);
-    PlayArea area(w,h);
+
+    int maxGPUs = 2;
+    PlayArea area(w,h,maxGPUs);
  
     std::cout << "Hello World!\n";
     cv::namedWindow("AATPTPT");

@@ -28,7 +28,7 @@ private:
     size_t _frameTime;
 public:
     // width and height must be multiple of 16
-    PlayArea(int width, int height)
+    PlayArea(int width, int height, int maximumGPUsToUse = 10)
     {
         _width = width;
         _height = height;
@@ -37,10 +37,10 @@ public:
         while (_height % 16 != 0)
             _height++;
         _totalCells = _width * _height;
-        _computer = std::make_shared<GPGPU::Computer>(GPGPU::Computer::DEVICE_GPUS); // allocate all devices for computations
+        _computer = std::make_shared<GPGPU::Computer>(GPGPU::Computer::DEVICE_GPUS,-1,1,true, maximumGPUsToUse); // allocate all devices for computations
 
         // broadcast type input (duplicated on all gpus from ram)
-        // load-balanced output
+        // load-balanced output                                                
         _areaIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("areaIn", _totalCells));
         _areaOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("areaOut", _totalCells));
         _temperatureIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("temperatureIn", _totalCells));
