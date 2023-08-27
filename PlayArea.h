@@ -28,7 +28,7 @@ private:
     size_t _frameTime;
 public:
     // width and height must be multiple of 16
-    PlayArea(int width, int height, int maximumGPUsToUse = 10)
+    PlayArea(int & width, int & height, int maximumGPUsToUse = 10)
     {
         _width = width;
         _height = height;
@@ -36,6 +36,8 @@ public:
             _width++;
         while (_height % 16 != 0)
             _height++;
+        height = _height;
+        width = _width;
         _totalCells = _width * _height;
         _computer = std::make_shared<GPGPU::Computer>(GPGPU::Computer::DEVICE_GPUS,-1,1,true, maximumGPUsToUse); // allocate all devices for computations
 
@@ -289,7 +291,7 @@ public:
                 {
                     auto id = x + i + (y + j) * _width;
                     _areaIn->access<unsigned char>(id) = 1;
-                    _temperatureIn->access<unsigned char>(id) = 0.35f * 255;
+                    _temperatureIn->access<unsigned char>(id) = 0.15f * 255;
                 }
     }
 

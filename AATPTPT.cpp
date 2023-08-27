@@ -37,11 +37,12 @@ int main()
     int w = 1600;
     int h = 900;
     Mouse mouse;
-    cv::Mat frame(h, w,CV_8UC3);
 
-    int maxGPUs = 2;
+
+    int maxGPUs = 2; // some systems have duplicated drivers that become an issue for pcie-bandwidth utilization. To limit maximum number of gpus to use, use this value.
     PlayArea area(w,h,maxGPUs);
- 
+    cv::Mat frame(h, w, CV_8UC3);
+
     std::cout << "Hello World!\n";
     cv::namedWindow("AATPTPT");
     cv::setMouseCallback("AATPTPT", click, &mouse);
