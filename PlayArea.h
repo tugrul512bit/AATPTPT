@@ -142,34 +142,71 @@ public:
 
                 int idBot = (y + 1) * PLAY_AREA_WIDTH + x;
                 unsigned char bot = (y<PLAY_AREA_HEIGHT-1 ? areaIn[idBot] : 0);
-
-                unsigned char emptyNeighborState[4];
-                emptyNeighborState[0] = (top == 0);
-                emptyNeighborState[1] = (right == 0);
-                emptyNeighborState[2] = (bot == 0);
-                emptyNeighborState[3] = (left == 0);
-
-
-                unsigned char emptyNeighborSource[4];
-                emptyNeighborSource[0] = 1;
-                emptyNeighborSource[1] = 2;
-                emptyNeighborSource[2] = 3;
-                emptyNeighborSource[3] = 4;
+                unsigned char posPickedIndex=0;
+                unsigned char posFilledPickedIndex=0;
+                // compute empty neighbors
                 unsigned char emptyNeighbor[4];
                 unsigned char numEmptyNeighbors = (top == 0) + (right == 0) + (bot == 0) + (left == 0);
-                unsigned char posIndex = 0;
-                unsigned char iter = 0;
-                while(posIndex != numEmptyNeighbors)
                 {
-                    if(emptyNeighborState[iter])
-                    {
-                        emptyNeighbor[posIndex] =  emptyNeighborSource[iter];                        
-                        posIndex++;
-                    }
-                    iter++;
-                }
-                unsigned char posPickedIndex = floor(numEmptyNeighbors * positionPossibility);
+                    unsigned char emptyNeighborState[4];
+                    emptyNeighborState[0] = (top == 0);
+                    emptyNeighborState[1] = (right == 0);
+                    emptyNeighborState[2] = (bot == 0);
+                    emptyNeighborState[3] = (left == 0);
 
+
+                    unsigned char emptyNeighborSource[4];
+                    emptyNeighborSource[0] = 1;
+                    emptyNeighborSource[1] = 2;
+                    emptyNeighborSource[2] = 3;
+                    emptyNeighborSource[3] = 4;
+                    
+                    
+                    unsigned char posIndex = 0;
+                    unsigned char iter = 0;
+                    while(posIndex != numEmptyNeighbors)
+                    {
+                        if(emptyNeighborState[iter])
+                        {
+                            emptyNeighbor[posIndex] =  emptyNeighborSource[iter];                        
+                            posIndex++;
+                        }
+                        iter++;
+                    }
+                    posPickedIndex = floor(numEmptyNeighbors * positionPossibility);
+                }
+
+                // compute filled neighbors
+                unsigned char filledNeighbor[4];
+                unsigned char numFilledNeighbors = (top == 1) + (right == 1) + (bot == 1) + (left == 1);
+                {
+                    unsigned char filledNeighborState[4];
+                    filledNeighborState[0] = (top == 1);
+                    filledNeighborState[1] = (right == 1);
+                    filledNeighborState[2] = (bot == 1);
+                    filledNeighborState[3] = (left == 1);
+
+
+                    unsigned char filledNeighborSource[4];
+                    filledNeighborSource[0] = 101;
+                    filledNeighborSource[1] = 102;
+                    filledNeighborSource[2] = 103;
+                    filledNeighborSource[3] = 104;
+                   
+                    
+                    unsigned char posIndex = 0;
+                    unsigned char iter = 0;
+                    while(posIndex != numFilledNeighbors)
+                    {
+                        if(filledNeighborState[iter])
+                        {
+                            filledNeighbor[posIndex] =  filledNeighborSource[iter];                        
+                            posIndex++;
+                        }
+                        iter++;
+                    }
+                    posFilledPickedIndex = floor(numFilledNeighbors * positionPossibility);
+                }
 
                 if(areaIn[id]>0 && temperatureIn[id] > motionPossibility && numEmptyNeighbors > 0)
                 {                       
@@ -184,7 +221,12 @@ public:
                 else if(areaIn[id] == 0)
                 {
                     // 100+ means selecting which source to accept (when it is empty)
-                    newPos = 101 + (positionPossibility/0.25f); //  101= top, 102 = right, 103 = bot, 104 = left
+                    if(numFilledNeighbors>0)
+                    { 
+                        newPos = filledNeighbor[posFilledPickedIndex]; //  101= top, 102 = right, 103 = bot, 104 = left
+                    }
+                    else
+                        newPos = 0;
                 }
                 randomSeedState[id]=randomSeed;
                 targetPositionOut[id]=newPos;
@@ -228,6 +270,7 @@ public:
                 if (center == 1)
                 {
                     unsigned char targetPos = targetPositionIn[id];
+                        
                     if(targetPos == 1 && top == 0 && targetTop == 103)
                     {   
                         areaOut[id]=0;
