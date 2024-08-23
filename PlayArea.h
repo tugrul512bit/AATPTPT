@@ -13,22 +13,24 @@ private:
     std::shared_ptr<GPGPU::Computer> _computer;
     std::shared_ptr<GPGPU::HostParameter> _areaIn;
     std::shared_ptr<GPGPU::HostParameter> _areaOut;
-    std::shared_ptr<GPGPU::HostParameter> _temperatureIn;
-    std::shared_ptr<GPGPU::HostParameter> _temperatureOut;
+    std::shared_ptr<GPGPU::HostParameter> _areaTargetSourceIn;
+    std::shared_ptr<GPGPU::HostParameter> _areaTargetSourceOut;
+
     std::shared_ptr<GPGPU::HostParameter> _randomSeedIn;
     std::shared_ptr<GPGPU::HostParameter> _randomSeedState;
-    std::shared_ptr<GPGPU::HostParameter> _targetPositionIn;
-    std::shared_ptr<GPGPU::HostParameter> _targetPositionOut;
 
     std::shared_ptr<GPGPU::HostParameter> _parametersRandomInit;
-    std::shared_ptr<GPGPU::HostParameter> _parametersComputeTargetPosition;
-    std::shared_ptr<GPGPU::HostParameter> _parameters;
+    std::shared_ptr<GPGPU::HostParameter> _parameterSand;
+    std::shared_ptr<GPGPU::HostParameter> _parameterSandMove;
+
+
     std::string _defineMacros;
     size_t _frameTime;
     int _numComputePerFrame;
+    int _quantumStrength;
 public:
     // width and height must be multiple of 16
-    PlayArea(int & width, int & height, int maximumGPUsToUse = 10, int numStepsPerFrame=10)
+    PlayArea(int & width, int & height, int maximumGPUsToUse = 10, int numStepsPerFrame=10, int quantumStrength=1)
     {
         cv::namedWindow("AATPTPT");
         _numComputePerFrame = numStepsPerFrame;
@@ -41,37 +43,41 @@ public:
         height = _height;
         width = _width;
         _totalCells = _width * _height;
-        _computer = std::make_shared<GPGPU::Computer>(GPGPU::Computer::DEVICE_GPUS,-1,1,true, maximumGPUsToUse); // allocate all devices for computations
+        _quantumStrength = quantumStrength;
+        _computer = std::make_shared<GPGPU::Computer>(GPGPU::Computer::DEVICE_GPUS,-1,1,false, maximumGPUsToUse); // allocate all devices for computations
 
         // broadcast type input (duplicated on all gpus from ram)
         // load-balanced output                                                
         _areaIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("areaIn", _totalCells));
         _areaOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("areaOut", _totalCells));
-        _temperatureIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("temperatureIn", _totalCells));
-        _temperatureOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("temperatureOut", _totalCells));
+        _areaTargetSourceIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("areaTargetSourceIn", _totalCells));
+        _areaTargetSourceOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("areaTargetSourceOut", _totalCells));
+     
         _randomSeedIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned int>("randomSeedIn", _totalCells));
         _randomSeedState = std::make_shared<GPGPU::HostParameter>(_computer->createArrayState<unsigned int>("randomSeedState", _totalCells));
-        _targetPositionIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("targetPositionIn", _totalCells));
-        _targetPositionOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("targetPositionOut", _totalCells));
 
         _parametersRandomInit = std::make_shared<GPGPU::HostParameter>(
             _randomSeedIn->next(*_randomSeedState)
         );
 
-        _parametersComputeTargetPosition = std::make_shared<GPGPU::HostParameter>(
-            _areaIn->next(*_temperatureIn).next(*_randomSeedState).next(*_targetPositionOut)
+        _parameterSand = std::make_shared<GPGPU::HostParameter>(
+            _areaIn->next(*_randomSeedState).next(*_areaTargetSourceOut)
         );
 
 
-        _parameters = std::make_shared<GPGPU::HostParameter>(
-            _areaIn->next(*_areaOut).next(*_temperatureIn).next(*_temperatureOut).next(*_randomSeedState).next(*_targetPositionIn)
+        _parameterSandMove = std::make_shared<GPGPU::HostParameter>(
+            _areaTargetSourceIn->next(*_areaIn).next(*_areaOut)
         );
+      
 
         _defineMacros = std::string("#define PLAY_AREA_WIDTH ") + std::to_string(_width) + R"(
         )";
         _defineMacros += std::string("#define PLAY_AREA_HEIGHT ") + std::to_string(_height) + R"(
         )";
         _defineMacros += std::string("#define PLAY_AREA_TOTAL_CELLS ") + std::to_string(_totalCells) + R"(
+        )";
+
+        _defineMacros += std::string("#define PLAY_AREA_QUANTUM_STRENGTH ") + std::to_string(_quantumStrength) + R"(
         )";
 
         _defineMacros += R"(
@@ -115,227 +121,185 @@ public:
             }
         )", "initRandomSeed");
 
-        _computer->compile(_defineMacros + R"(
-           kernel void computePositionTarget(
-                const global unsigned char * __restrict__ areaIn,
-                const global unsigned char * __restrict__ temperatureIn,
-                global unsigned int * __restrict__ randomSeedState,
-                global unsigned char * __restrict__ targetPositionOut
-            )
-            {
-                const int id=get_global_id(0);   
-                const int x = id % PLAY_AREA_WIDTH;
-                const int y = id / PLAY_AREA_WIDTH;
-                              
-                unsigned int randomSeed = randomSeedState[id];
-                float motionPossibility = randomFloat(&randomSeed) * 255;
-                unsigned char newPos = 0;   
-                float positionPossibility = randomFloat(&randomSeed); 
-
-                // finding empty neighbors
-                int idTop = (y - 1) * PLAY_AREA_WIDTH + x;
-                unsigned char top = (y>0 ? areaIn[idTop] : 0);
-
-                int idLeft = y * PLAY_AREA_WIDTH + (x-1);
-                unsigned char left =(x>0 ? areaIn[idLeft] : 0);                                                                                              
-
-                int idRight = y * PLAY_AREA_WIDTH + (x+1);
-                unsigned char right =(x<PLAY_AREA_WIDTH-1 ? areaIn[idRight] : 0);             
-
-                int idBot = (y + 1) * PLAY_AREA_WIDTH + x;
-                unsigned char bot = (y<PLAY_AREA_HEIGHT-1 ? areaIn[idBot] : 0);
-                unsigned char posPickedIndex=0;
-                unsigned char posFilledPickedIndex=0;
-                // compute empty neighbors
-                unsigned char emptyNeighbor[4];
-                unsigned char numEmptyNeighbors = (top == 0) + (right == 0) + (bot == 0) + (left == 0);
-                {
-                    unsigned char emptyNeighborState[4];
-                    emptyNeighborState[0] = (top == 0);
-                    emptyNeighborState[1] = (right == 0);
-                    emptyNeighborState[2] = (bot == 0);
-                    emptyNeighborState[3] = (left == 0);
-
-
-                    unsigned char emptyNeighborSource[4];
-                    emptyNeighborSource[0] = 1;
-                    emptyNeighborSource[1] = 2;
-                    emptyNeighborSource[2] = 3;
-                    emptyNeighborSource[3] = 4;
-                    
-                    
-                    unsigned char posIndex = 0;
-                    unsigned char iter = 0;
-                    while(posIndex != numEmptyNeighbors)
-                    {
-                        if(emptyNeighborState[iter])
-                        {
-                            emptyNeighbor[posIndex] =  emptyNeighborSource[iter];                        
-                            posIndex++;
-                        }
-                        iter++;
-                    }
-                    posPickedIndex = floor(numEmptyNeighbors * positionPossibility);
-                }
-
-                // compute filled neighbors
-                unsigned char filledNeighbor[4];
-                unsigned char numFilledNeighbors = (top == 1) + (right == 1) + (bot == 1) + (left == 1);
-                {
-                    unsigned char filledNeighborState[4];
-                    filledNeighborState[0] = (top == 1);
-                    filledNeighborState[1] = (right == 1);
-                    filledNeighborState[2] = (bot == 1);
-                    filledNeighborState[3] = (left == 1);
-
-
-                    unsigned char filledNeighborSource[4];
-                    filledNeighborSource[0] = 101;
-                    filledNeighborSource[1] = 102;
-                    filledNeighborSource[2] = 103;
-                    filledNeighborSource[3] = 104;
-                   
-                    
-                    unsigned char posIndex = 0;
-                    unsigned char iter = 0;
-                    while(posIndex != numFilledNeighbors)
-                    {
-                        if(filledNeighborState[iter])
-                        {
-                            filledNeighbor[posIndex] =  filledNeighborSource[iter];                        
-                            posIndex++;
-                        }
-                        iter++;
-                    }
-                    posFilledPickedIndex = floor(numFilledNeighbors * positionPossibility);
-                }
-
-                if(areaIn[id]>0 && temperatureIn[id] > motionPossibility && numEmptyNeighbors > 0)
-                {                       
-                                
-                    newPos = emptyNeighbor[posPickedIndex];
-                }
-                else if(areaIn[id]>0)
-                {
-                    // gravity
-                    newPos = 3;
-                }
-                else if(areaIn[id] == 0)
-                {
-                    // 100+ means selecting which source to accept (when it is empty)
-                    if(numFilledNeighbors>0)
-                    { 
-                        newPos = filledNeighbor[posFilledPickedIndex]; //  101= top, 102 = right, 103 = bot, 104 = left
-                    }
-                    else
-                        newPos = 0;
-                }
-                randomSeedState[id]=randomSeed;
-                targetPositionOut[id]=newPos;
-            }
-        )","computePositionTarget");
         
         _computer->compile(_defineMacros + R"(
     
 
             // todo: compute 5x5 neighborhood
             kernel void computeSand(
-                const global unsigned char * __restrict__ areaIn, global unsigned char * __restrict__ areaOut,
-                const global unsigned char * __restrict__ temperatureIn, global unsigned char * __restrict__ temperatureOut,
+                const global unsigned char * __restrict__ areaIn, 
                 global unsigned int * __restrict__ randomSeedState,
-                const global unsigned char * __restrict__ targetPositionIn
+                global unsigned char * __restrict__ areaTargetSource
             ) 
             { 
                 const int id=get_global_id(0); 
                 const int x = id % PLAY_AREA_WIDTH;
                 const int y = id / PLAY_AREA_WIDTH;
                 unsigned int randomSeed = randomSeedState[id];
-                int idTop = (y - 1) * PLAY_AREA_WIDTH + x;
-                unsigned char top = (y>0 ? areaIn[idTop] : 0);
-                unsigned char targetTop = (y>0 ? targetPositionIn[idTop] : 0);
+                
+                const int matter = areaIn[id];
 
-                int idLeft = y * PLAY_AREA_WIDTH + (x-1);
-                unsigned char left =(x>0 ? areaIn[idLeft] : 0);                                                
-                unsigned char targetLeft =(x>0 ? targetPositionIn[idLeft] : 0);                                                
+                const int topIdY = (y==0?y:y-1);
+                const int topIdX = x;
+                const int rightIdY = y;
+                const int rightIdX = (x==PLAY_AREA_WIDTH - 1 ? x:x+1);
+                const int botIdY = (y==PLAY_AREA_HEIGHT-1?y:y+1);
+                const int botIdX = x;
+                const int leftIdY = y;
+                const int leftIdX = (x==0 ? x:x-1);
 
-                int idRight = y * PLAY_AREA_WIDTH + (x+1);
-                unsigned char right =(x<PLAY_AREA_WIDTH-1 ? areaIn[idRight] : 0);             
-                unsigned char targetRight =(x<PLAY_AREA_WIDTH-1 ? targetPositionIn[idRight] : 0);
+                const unsigned char top = areaIn[topIdX + topIdY * PLAY_AREA_WIDTH];
+                const unsigned char right = areaIn[rightIdX + rightIdY * PLAY_AREA_WIDTH];
+                const unsigned char bot = areaIn[botIdX + botIdY * PLAY_AREA_WIDTH];
+                const unsigned char left = areaIn[leftIdX + leftIdY * PLAY_AREA_WIDTH];
 
-                unsigned char center = areaIn[id];
-                unsigned char targetAccepted = targetPositionIn[id];
+                // quantum-mechenical pressure solver
+                // a particle can go only 4 places
+                // having more particles on target pos lowers the probability for there
+                // then particle picks a pos to go, marks its id (does not move yet because parallel update will be done)
+                // todo: weighted probabilities
+           
+               
+                int options[8]={-1,-1,-1,-1,-1,-1,-1,-1};
+                int optIndex = 0;
+                // check where can 1 matter go
+                // gravity
+                if(bot<255-PLAY_AREA_QUANTUM_STRENGTH*4 && matter > PLAY_AREA_QUANTUM_STRENGTH*4 && botIdY != y)
+                    options[optIndex++]=4;
 
-                int idBot = (y + 1) * PLAY_AREA_WIDTH + x;
-                unsigned char bot = (y<PLAY_AREA_HEIGHT-1 ? areaIn[idBot] : 0);
-                unsigned char targetBot = (y<PLAY_AREA_HEIGHT-1 ? targetPositionIn[idBot] : 0);
-
-                if (center == 1)
+                // matter leaving
+                if(matter > 0)
                 {
-                    unsigned char targetPos = targetPositionIn[id];
-                        
-                    if(targetPos == 1 && top == 0 && targetTop == 103)
-                    {   
-                        areaOut[id]=0;
-                        temperatureOut[id]=0;
-                    }
-                    else if(targetPos == 2 && right == 0  && targetRight == 104)
-                    {
-                        areaOut[id]=0;
-                        temperatureOut[id]=0;
-                    }
-                    else if(targetPos == 3 && bot == 0 && targetBot == 101)
-                    {
-                        areaOut[id]=0;
-                        temperatureOut[id]=0;
-                    }
-                    else if(targetPos == 4 && left == 0 && targetLeft == 102)
-                    {
-                        areaOut[id]=0;
-                        temperatureOut[id]=0;
-                    }
-                    else // no movement
-                    {
-                        areaOut[id]=center;
-                        temperatureOut[id]=temperatureIn[id];
-                    }
+                    if(matter > top && top<255-PLAY_AREA_QUANTUM_STRENGTH*4)
+                        options[optIndex++]=1;
+                    if(matter > right && right<255-PLAY_AREA_QUANTUM_STRENGTH*4)
+                        options[optIndex++]=2;
+                    if(matter > bot && bot<255-PLAY_AREA_QUANTUM_STRENGTH*4)
+                        options[optIndex++]=4;
+                    if(matter > left && left<255-PLAY_AREA_QUANTUM_STRENGTH*4)
+                        options[optIndex++]=8;
+                }
 
-                }
-                else
+                // matter arriving
+                if(matter<255)
                 {
-                    // if top cell is filled and its going down
-                    int sourceId = -1;                    
-                    if(top == 1 && targetTop == 3 && targetAccepted == 101)
-                    {
-                        sourceId = idTop;
-                    }
-                    else if(right == 1 && targetRight == 4  && targetAccepted == 102)
-                    {
-                        sourceId = idRight;
-                    }
-                    else if(bot == 1 && targetBot == 1 && targetAccepted == 103)
-                    {
-                        sourceId = idBot;
-                    }
-                    else if(left == 1 && targetLeft == 2 && targetAccepted == 104)
-                    {
-                        sourceId = idLeft;
-                    }
-            
-                    if(sourceId != -1)
-                    {
-                     
-                        areaOut[id] = areaIn[sourceId];
-                        temperatureOut[id] = temperatureIn[sourceId];
-                    }
-                    else
-                    {
-                        areaOut[id]=0;
-                        temperatureOut[id]=0;
-                    }
+                    if(matter < top && top > PLAY_AREA_QUANTUM_STRENGTH*4)
+                        options[optIndex++]=16;
+                    if(matter < right && right > PLAY_AREA_QUANTUM_STRENGTH*4)
+                        options[optIndex++]=32;
+                    if(matter < bot && bot > PLAY_AREA_QUANTUM_STRENGTH*4)
+                        options[optIndex++]=64;
+                    if(matter < left && left > PLAY_AREA_QUANTUM_STRENGTH*4)
+                        options[optIndex++]=128;
                 }
+
+                const int selected = randomFloat(&randomSeed) * optIndex;
+
+                // 1 = goes top, 2 = goes right, 4 = goes bottom, 8 = goes left, 
+                // 16 = comes from top, 32 = comes from right, 64 = comes from bottom, 128 = comes from left
+                areaTargetSource[id] = options[selected];
+
                 randomSeedState[id]=randomSeed;
              })", "computeSand");
 
+
+        _computer->compile(_defineMacros + R"(
+            kernel void moveSand(
+                const global unsigned char * __restrict__ areaTargetSource,
+                global unsigned char * __restrict__ areaIn,
+                global unsigned char * __restrict__ areaOut
+            )
+            {
+                const int id=get_global_id(0);  
+                const int x = id%PLAY_AREA_WIDTH;
+                const int y = id/PLAY_AREA_WIDTH;
+
+
+                const int topIdY = (y==0?y:y-1);
+                const int topIdX = x;
+                const int rightIdY = y;
+                const int rightIdX = (x==PLAY_AREA_WIDTH - 1 ? x:x+1);
+                const int botIdY = (y==PLAY_AREA_HEIGHT-1?y:y+1);
+                const int botIdX = x;
+                const int leftIdY = y;
+                const int leftIdX = (x==0 ? x:x-1);
+                
+
+                const unsigned char tsCenter = areaTargetSource[id];
+
+                const unsigned char top = areaTargetSource[topIdX + topIdY * PLAY_AREA_WIDTH];
+                const unsigned char right = areaTargetSource[rightIdX + rightIdY * PLAY_AREA_WIDTH];
+                const unsigned char bot = areaTargetSource[botIdX + botIdY * PLAY_AREA_WIDTH];
+                const unsigned char left = areaTargetSource[leftIdX + leftIdY * PLAY_AREA_WIDTH];
+
+
+
+                int matter = 0;
+                if(tsCenter == 1)
+                    matter-=PLAY_AREA_QUANTUM_STRENGTH;
+
+                if(tsCenter == 2)
+                    matter-=PLAY_AREA_QUANTUM_STRENGTH;
+
+                if(tsCenter == 4)
+                    matter-=PLAY_AREA_QUANTUM_STRENGTH;
+
+                if(tsCenter == 8)
+                    matter-=PLAY_AREA_QUANTUM_STRENGTH;
+
+                if(tsCenter == 16)
+                    matter+=PLAY_AREA_QUANTUM_STRENGTH;
+
+                if(tsCenter == 32)
+                    matter+=PLAY_AREA_QUANTUM_STRENGTH;
+
+                if(tsCenter == 64)
+                    matter+=PLAY_AREA_QUANTUM_STRENGTH;
+
+                if(tsCenter == 128)
+                    matter+=PLAY_AREA_QUANTUM_STRENGTH;
+
+                if(topIdY != y)
+                {
+                    // if top cell sending 1 matter to its bottom (that is current cell)
+                    if(top == 4)
+                        matter+=PLAY_AREA_QUANTUM_STRENGTH;
+
+                    if(top == 64)
+                        matter-=PLAY_AREA_QUANTUM_STRENGTH;
+                }
+
+                if(rightIdX != x)
+                {
+                    if(right == 8)
+                        matter+=PLAY_AREA_QUANTUM_STRENGTH;
+
+                    if(right == 128)
+                        matter-=PLAY_AREA_QUANTUM_STRENGTH;
+                }
+
+                if(botIdY != y)
+                {
+                    if(bot == 1)
+                        matter+=PLAY_AREA_QUANTUM_STRENGTH;
+
+                    if(bot == 16)
+                        matter-=PLAY_AREA_QUANTUM_STRENGTH;
+                }
+
+                if(leftIdX != x)
+                {
+                    if(left == 2)
+                        matter+=PLAY_AREA_QUANTUM_STRENGTH;
+
+                    if(left == 32)
+                        matter-=PLAY_AREA_QUANTUM_STRENGTH;
+                }
+
+                areaOut[id] = areaIn[id] + matter;
+
+            }
+        )", "moveSand");
 
         Reset();
 
@@ -347,9 +311,7 @@ public:
         for (int i = 0; i < _width * _height; i++)
         {
             _areaIn->access<unsigned char>(i) = 0;
-            _temperatureIn->access<unsigned char>(i) = 0.0f;
             _randomSeedIn->access<unsigned int>(i) = i;
-            _targetPositionIn->access<unsigned char>(i) = 0;
         }
         _computer->compute(*_parametersRandomInit, "initRandomSeed", 0, _totalCells, 256);
     }
@@ -365,12 +327,11 @@ public:
 
     void CalcFallingSand()
     {
-        _computer->compute(*_parametersComputeTargetPosition, "computePositionTarget", 0, _totalCells, 256);
-        _targetPositionOut->copyDataToPtr(_targetPositionIn->accessPtr<unsigned char>(0));
-
-        _computer->compute(*_parameters, "computeSand", 0, _totalCells, 256);
+        _computer->compute(*_parameterSand, "computeSand", 0, _totalCells, 256);
+        _areaTargetSourceOut->copyDataToPtr(_areaTargetSourceIn->accessPtr<unsigned char>(0));
+        _computer->compute(*_parameterSandMove, "moveSand", 0, _totalCells, 256);
         _areaOut->copyDataToPtr(_areaIn->accessPtr<unsigned char>(0));
-        _temperatureOut->copyDataToPtr(_temperatureIn->accessPtr<unsigned char>(0));
+
     }
 
 
@@ -382,8 +343,8 @@ public:
                 if (x + i >= 0 && x + i < _width && y + j >= 0 && y + j < _height)
                 {
                     auto id = x + i + (y + j) * _width;
-                    _areaIn->access<unsigned char>(id) = 1;
-                    _temperatureIn->access<unsigned char>(id) = 0.6f * 255;
+                    if (_areaIn->access<unsigned char>(id) < 200)
+                        _areaIn->access<unsigned char>(id)+=5;                    
                 }
     }
 
@@ -397,35 +358,33 @@ public:
 
             GPGPU::Bench bench(&ti);
             std::vector<std::thread> thr;
-            std::atomic<int> _j = 0;
+            std::atomic<int> _j = 0,total=0;
+            
             for (int k = 0; k < std::thread::hardware_concurrency(); k++)
             {
                 thr.emplace_back([&]() {
                     int j = 0;
+                    int tot = 0;
+                        
                     while ((j = _j++) < frame.rows)
                     {
                         for (int i = 0; i < frame.cols; i++)
                         {
                             unsigned char matter = _areaOut->access<unsigned char>(i + j * _width);
-                            if (matter == 1)
-                            {
-                                frame.at<cv::Vec3b>(i + j * _width).val[0] = 100;
-                                frame.at<cv::Vec3b>(i + j * _width).val[1] = 50;
-                                frame.at<cv::Vec3b>(i + j * _width).val[2] = 25;
-                            }
-                            else
-                            {
-                                frame.at<cv::Vec3b>(i + j * _width).val[0] = 0;
-                                frame.at<cv::Vec3b>(i + j * _width).val[1] = 0;
-                                frame.at<cv::Vec3b>(i + j * _width).val[2] = 0;
-                            }
+                            frame.at<cv::Vec3b>(i + j * _width).val[0] = matter;
+                            frame.at<cv::Vec3b>(i + j * _width).val[1] = matter;
+                            frame.at<cv::Vec3b>(i + j * _width).val[2] = matter;
+                            tot += matter;
                         }
                     }
+
+                    total += tot;
                     });
             }
             for (auto& e : thr)
                 e.join();
             cv::putText(frame, std::string("compute(")+std::to_string(_numComputePerFrame) + std::string(" steps): ") + std::to_string(_frameTime / 1000000000.0) + std::string(" seconds"), cv::Point2f(46, 76), 1, 5, cv::Scalar(50, 59, 69));
+            cv::putText(frame, std::string("matter: ") + std::to_string(total.load()), cv::Point2f(46, 126), 1, 5, cv::Scalar(50, 59, 69));
             cv::imshow("AATPTPT", frame);
 
         }
