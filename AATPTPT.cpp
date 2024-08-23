@@ -40,7 +40,7 @@ int main()
 
 
     int maxGPUs = 2; // some systems have duplicated drivers that become an issue for pcie-bandwidth utilization. To limit maximum number of gpus to use, use this value.
-    int stepsPerFrame = 100;
+    int stepsPerFrame = 5;
     int quantumStrength = 1;
     PlayArea area(w,h,maxGPUs,stepsPerFrame,quantumStrength);
     

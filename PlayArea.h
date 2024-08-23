@@ -14,13 +14,16 @@ private:
     std::shared_ptr<GPGPU::HostParameter> _areaIn;
     std::shared_ptr<GPGPU::HostParameter> _areaOut;
     std::shared_ptr<GPGPU::HostParameter> _areaTargetSourceIn;
+    std::shared_ptr<GPGPU::HostParameter> _areaTargetSourceIn2;
     std::shared_ptr<GPGPU::HostParameter> _areaTargetSourceOut;
+    std::shared_ptr<GPGPU::HostParameter> _areaTargetSourceOut2;
 
     std::shared_ptr<GPGPU::HostParameter> _randomSeedIn;
     std::shared_ptr<GPGPU::HostParameter> _randomSeedState;
 
     std::shared_ptr<GPGPU::HostParameter> _parametersRandomInit;
-    std::shared_ptr<GPGPU::HostParameter> _parameterSand;
+    std::shared_ptr<GPGPU::HostParameter> _parameterGuess1;
+    std::shared_ptr<GPGPU::HostParameter> _parameterGuess2;
     std::shared_ptr<GPGPU::HostParameter> _parameterSandMove;
 
 
@@ -44,14 +47,17 @@ public:
         width = _width;
         _totalCells = _width * _height;
         _quantumStrength = quantumStrength;
-        _computer = std::make_shared<GPGPU::Computer>(GPGPU::Computer::DEVICE_GPUS,-1,1,false, maximumGPUsToUse); // allocate all devices for computations
+        _computer = std::make_shared<GPGPU::Computer>(GPGPU::Computer::DEVICE_GPUS,-1,1,true, maximumGPUsToUse); // allocate all devices for computations
 
         // broadcast type input (duplicated on all gpus from ram)
         // load-balanced output                                                
         _areaIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("areaIn", _totalCells));
         _areaOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("areaOut", _totalCells));
         _areaTargetSourceIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("areaTargetSourceIn", _totalCells));
+        _areaTargetSourceIn2 = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("areaTargetSourceIn2", _totalCells));
+        
         _areaTargetSourceOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("areaTargetSourceOut", _totalCells));
+        _areaTargetSourceOut2 = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("areaTargetSourceOut2", _totalCells));
      
         _randomSeedIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned int>("randomSeedIn", _totalCells));
         _randomSeedState = std::make_shared<GPGPU::HostParameter>(_computer->createArrayState<unsigned int>("randomSeedState", _totalCells));
@@ -60,13 +66,15 @@ public:
             _randomSeedIn->next(*_randomSeedState)
         );
 
-        _parameterSand = std::make_shared<GPGPU::HostParameter>(
+        _parameterGuess1 = std::make_shared<GPGPU::HostParameter>(
             _areaIn->next(*_randomSeedState).next(*_areaTargetSourceOut)
         );
-
+        _parameterGuess2 = std::make_shared<GPGPU::HostParameter>(
+            _areaTargetSourceIn->next(*_areaTargetSourceOut2).next(*_randomSeedState)
+        );
 
         _parameterSandMove = std::make_shared<GPGPU::HostParameter>(
-            _areaTargetSourceIn->next(*_areaIn).next(*_areaOut)
+            _areaTargetSourceIn->next(*_areaTargetSourceIn2).next(*_areaIn).next(*_areaOut)
         );
       
 
@@ -126,10 +134,10 @@ public:
     
 
             // todo: compute 5x5 neighborhood
-            kernel void computeSand(
+            kernel void guessParticleTarget(
                 const global unsigned char * __restrict__ areaIn, 
                 global unsigned int * __restrict__ randomSeedState,
-                global unsigned char * __restrict__ areaTargetSource
+                global unsigned char * __restrict__ areaTargetSourceOut
             ) 
             { 
                 const int id=get_global_id(0); 
@@ -148,10 +156,10 @@ public:
                 const int leftIdY = y;
                 const int leftIdX = (x==0 ? x:x-1);
 
-                const unsigned char top = areaIn[topIdX + topIdY * PLAY_AREA_WIDTH];
-                const unsigned char right = areaIn[rightIdX + rightIdY * PLAY_AREA_WIDTH];
-                const unsigned char bot = areaIn[botIdX + botIdY * PLAY_AREA_WIDTH];
-                const unsigned char left = areaIn[leftIdX + leftIdY * PLAY_AREA_WIDTH];
+                const int top = areaIn[topIdX + topIdY * PLAY_AREA_WIDTH];
+                const int right = areaIn[rightIdX + rightIdY * PLAY_AREA_WIDTH];
+                const int bot = areaIn[botIdX + botIdY * PLAY_AREA_WIDTH];
+                const int left = areaIn[leftIdX + leftIdY * PLAY_AREA_WIDTH];
 
                 // quantum-mechenical pressure solver
                 // a particle can go only 4 places
@@ -159,54 +167,219 @@ public:
                 // then particle picks a pos to go, marks its id (does not move yet because parallel update will be done)
                 // todo: weighted probabilities
            
-               
-                int options[8]={-1,-1,-1,-1,-1,-1,-1,-1};
-                int optIndex = 0;
+              
+                int totProb = 0;
+                int tot = 0;
                 // check where can 1 matter go
-                // gravity
-                if(bot<255-PLAY_AREA_QUANTUM_STRENGTH*4 && matter > PLAY_AREA_QUANTUM_STRENGTH*4 && botIdY != y)
-                    options[optIndex++]=4;
 
-                // matter leaving
-                if(matter > 0)
+             
+                if(matter == 1 && top == 0 && topIdY != y)
                 {
-                    if(matter > top && top<255-PLAY_AREA_QUANTUM_STRENGTH*4)
-                        options[optIndex++]=1;
-                    if(matter > right && right<255-PLAY_AREA_QUANTUM_STRENGTH*4)
-                        options[optIndex++]=2;
-                    if(matter > bot && bot<255-PLAY_AREA_QUANTUM_STRENGTH*4)
-                        options[optIndex++]=4;
-                    if(matter > left && left<255-PLAY_AREA_QUANTUM_STRENGTH*4)
-                        options[optIndex++]=8;
+                    totProb++;
+                }
+                if(matter == 1 && right == 0 && rightIdX != x)
+                {
+                    totProb+=3;
+                }
+                if(matter == 1 && bot == 0 && botIdY != y)
+                {
+                    totProb+=10;
+                }
+                if(matter == 1 && left == 0 && leftIdX != x)
+                {
+                    totProb+=3;
+                }                
+
+                
+
+                const int selected = floor(randomFloat(&randomSeed) * totProb);
+
+
+                // check where can 1 matter go
+
+                
+                if(matter == 1 && top == 0 && topIdY != y)
+                {
+                    tot++;
+                    if(selected<tot)
+                    {
+                        areaTargetSourceOut[id]=1;
+                        randomSeedState[id]=randomSeed;
+                        return;
+                    }
                 }
 
-                // matter arriving
-                if(matter<255)
+                if(matter == 1 && right == 0 && rightIdX != x)
                 {
-                    if(matter < top && top > PLAY_AREA_QUANTUM_STRENGTH*4)
-                        options[optIndex++]=16;
-                    if(matter < right && right > PLAY_AREA_QUANTUM_STRENGTH*4)
-                        options[optIndex++]=32;
-                    if(matter < bot && bot > PLAY_AREA_QUANTUM_STRENGTH*4)
-                        options[optIndex++]=64;
-                    if(matter < left && left > PLAY_AREA_QUANTUM_STRENGTH*4)
-                        options[optIndex++]=128;
+                    tot+=3;
+                    if(selected<tot)
+                    {
+                        areaTargetSourceOut[id]=2;
+                        randomSeedState[id]=randomSeed;
+                        return;
+                    }
                 }
 
-                const int selected = randomFloat(&randomSeed) * optIndex;
+                if(matter == 1 && bot == 0 && botIdY != y)
+                {
+                    tot+=10;
+                    if(selected<tot)
+                    {
+                        areaTargetSourceOut[id]=4;
+                        randomSeedState[id]=randomSeed;
+                        return;
+                    }
+                }
+
+                if(matter == 1 && left == 0 && leftIdX != x)
+                {
+                    tot+=3;
+                    if(selected<tot)
+                    {
+                        areaTargetSourceOut[id]=8;
+                        randomSeedState[id]=randomSeed;
+                        return;
+                    }
+                }
+
+              
 
                 // 1 = goes top, 2 = goes right, 4 = goes bottom, 8 = goes left, 
-                // 16 = comes from top, 32 = comes from right, 64 = comes from bottom, 128 = comes from left
-                areaTargetSource[id] = options[selected];
+                         
+                areaTargetSourceOut[id]=0;
+            })", "guessParticleTarget");
 
+
+        // picks 1 of multiple cells that want to send matter
+        _computer->compile(_defineMacros + R"(
+            kernel void pickOneTargetGuess(
+                const global unsigned char * __restrict__ areaTargetSourceIn,
+                global unsigned char * __restrict__ areaTargetSourceOut2,
+                global unsigned int * __restrict__ randomSeedState
+            )
+            {
+                const int id=get_global_id(0);  
+                const int x = id%PLAY_AREA_WIDTH;
+                const int y = id/PLAY_AREA_WIDTH;
+                unsigned int randomSeed = randomSeedState[id];
+
+                const int topIdY = (y==0?y:y-1);
+                const int topIdX = x;
+                const int rightIdY = y;
+                const int rightIdX = (x==PLAY_AREA_WIDTH - 1 ? x:x+1);
+                const int botIdY = (y==PLAY_AREA_HEIGHT-1?y:y+1);
+                const int botIdX = x;
+                const int leftIdY = y;
+                const int leftIdX = (x==0 ? x:x-1);
+                
+
+                const unsigned char tsCenter = areaTargetSourceIn[id];
+
+                const int top = areaTargetSourceIn[topIdX + topIdY * PLAY_AREA_WIDTH];
+                const int right = areaTargetSourceIn[rightIdX + rightIdY * PLAY_AREA_WIDTH];
+                const int bot = areaTargetSourceIn[botIdX + botIdY * PLAY_AREA_WIDTH];
+                const int left = areaTargetSourceIn[leftIdX + leftIdY * PLAY_AREA_WIDTH];
+
+                // picks one of neighbors that send matter to this cell
+                // by probability
+                // gas: all neighbors
+                // liquid: left right bottom bottom-left bottom-right
+                // solid: bottom-left bottom bottom-right
+                int totProb = 0;
+                int tot = 0;
+
+                // more probability for top to down because of gravity
+                if(topIdY != y)
+                {
+                    if(top == 4)
+                        totProb +=10;
+                }
+
+                if(rightIdX != x)
+                {
+                    if(right == 8)
+                        totProb +=3;
+                }
+
+                if(botIdY != y)
+                {
+                    if(bot == 1)
+                        totProb +=1;
+                }
+
+                if(leftIdX != x)
+                {
+                    if(left == 2)
+                        totProb +=3;
+                }
+
+                const int selected = floor(randomFloat(&randomSeed) * totProb);
                 randomSeedState[id]=randomSeed;
-             })", "computeSand");
+
+                if(topIdY != y)
+                {
+                    if(top == 4)
+                        tot +=10;
+
+                    if(selected<tot)
+                    {
+                        areaTargetSourceOut2[id]=1;
+                        randomSeedState[id]=randomSeed;
+                        return;
+                    }
+                }
+
+                if(rightIdX != x)
+                {
+                    if(right == 8)
+                        tot +=3;
+
+                    if(selected<tot)
+                    {
+                        areaTargetSourceOut2[id]=2;
+                        randomSeedState[id]=randomSeed;
+                        return;
+                    }
+                }
+
+                if(botIdY != y)
+                {
+                    if(bot == 1)
+                        tot +=1;
+
+                    if(selected<tot)
+                    {
+                        areaTargetSourceOut2[id]=4;
+                        randomSeedState[id]=randomSeed;
+                        return;
+                    }
+                }
+
+                if(leftIdX != x)
+                {
+                    if(left == 2)
+                        tot +=3;
+
+                    if(selected<tot)
+                    {
+                        areaTargetSourceOut2[id]=8;
+                        randomSeedState[id]=randomSeed;
+                        return;
+                    }
+                }             
+
+            }
+        )", "pickOneTargetGuess");
 
 
+
+
+        // picks 1 of multiple cells that want to send matter
         _computer->compile(_defineMacros + R"(
             kernel void moveSand(
-                const global unsigned char * __restrict__ areaTargetSource,
-                global unsigned char * __restrict__ areaIn,
+                const global unsigned char * __restrict__ areaTargetSourceIn,
+                const global unsigned char * __restrict__ areaTargetSourceIn2,
+                const global unsigned char * __restrict__ areaIn,
                 global unsigned char * __restrict__ areaOut
             )
             {
@@ -225,82 +398,86 @@ public:
                 const int leftIdX = (x==0 ? x:x-1);
                 
 
-                const unsigned char tsCenter = areaTargetSource[id];
+         
+                const int center = areaIn[id];
+                // if empty, check the accepted movement data
+                if(center == 0)
+                {                    
+                    const int tsCenter = areaTargetSourceIn2[id];
 
-                const unsigned char top = areaTargetSource[topIdX + topIdY * PLAY_AREA_WIDTH];
-                const unsigned char right = areaTargetSource[rightIdX + rightIdY * PLAY_AREA_WIDTH];
-                const unsigned char bot = areaTargetSource[botIdX + botIdY * PLAY_AREA_WIDTH];
-                const unsigned char left = areaTargetSource[leftIdX + leftIdY * PLAY_AREA_WIDTH];
+                    const int top = areaTargetSourceIn[topIdX + topIdY * PLAY_AREA_WIDTH];
+                    const int right = areaTargetSourceIn[rightIdX + rightIdY * PLAY_AREA_WIDTH];
+                    const int bot = areaTargetSourceIn[botIdX + botIdY * PLAY_AREA_WIDTH];
+                    const int left = areaTargetSourceIn[leftIdX + leftIdY * PLAY_AREA_WIDTH];
 
+                    // if top cell wants to send down 1 matter and current cell want to receive 1 matter, it is ok
+                    if(top == 4 && tsCenter == 1 && topIdY != y)
+                    {
+                        areaOut[id] = 1;
+                        return;
+                    }
 
+                    // if right cell sends to left, current cell receives from right
+                    if(right == 8 &&  tsCenter == 2 && rightIdX != x)
+                    {
+                        areaOut[id] = 1;
+                        return;
+                    }
 
-                int matter = 0;
-                if(tsCenter == 1)
-                    matter-=PLAY_AREA_QUANTUM_STRENGTH;
+                    // if bottom cell sends up, current cell receives
+                    if(bot == 1 &&  tsCenter == 4 && botIdY != y)
+                    {
+                        areaOut[id] = 1;
+                        return;
+                    }
 
-                if(tsCenter == 2)
-                    matter-=PLAY_AREA_QUANTUM_STRENGTH;
-
-                if(tsCenter == 4)
-                    matter-=PLAY_AREA_QUANTUM_STRENGTH;
-
-                if(tsCenter == 8)
-                    matter-=PLAY_AREA_QUANTUM_STRENGTH;
-
-                if(tsCenter == 16)
-                    matter+=PLAY_AREA_QUANTUM_STRENGTH;
-
-                if(tsCenter == 32)
-                    matter+=PLAY_AREA_QUANTUM_STRENGTH;
-
-                if(tsCenter == 64)
-                    matter+=PLAY_AREA_QUANTUM_STRENGTH;
-
-                if(tsCenter == 128)
-                    matter+=PLAY_AREA_QUANTUM_STRENGTH;
-
-                if(topIdY != y)
-                {
-                    // if top cell sending 1 matter to its bottom (that is current cell)
-                    if(top == 4)
-                        matter+=PLAY_AREA_QUANTUM_STRENGTH;
-
-                    if(top == 64)
-                        matter-=PLAY_AREA_QUANTUM_STRENGTH;
+                    // if bottom cell sends up, current cell receives
+                    if(left == 2 &&  tsCenter == 8 && leftIdX != x)
+                    {
+                        areaOut[id] = 1;
+                        return;
+                    }
                 }
-
-                if(rightIdX != x)
+                else    // if not empty, check if can send (areaTargetSourceIn2 is for knowing who takes)
                 {
-                    if(right == 8)
-                        matter+=PLAY_AREA_QUANTUM_STRENGTH;
+                    const int tsCenter = areaTargetSourceIn[id];
 
-                    if(right == 128)
-                        matter-=PLAY_AREA_QUANTUM_STRENGTH;
+                    const int top = areaTargetSourceIn2[topIdX + topIdY * PLAY_AREA_WIDTH];
+                    const int right = areaTargetSourceIn2[rightIdX + rightIdY * PLAY_AREA_WIDTH];
+                    const int bot = areaTargetSourceIn2[botIdX + botIdY * PLAY_AREA_WIDTH];
+                    const int left = areaTargetSourceIn2[leftIdX + leftIdY * PLAY_AREA_WIDTH];
+
+                    // if top cell wants to receive
+                    if(top == 4 && tsCenter == 1 && topIdY != y)
+                    {
+                        areaOut[id] = 0;
+                        return;
+                    }
+
+                    // if right cell receives
+                    if(right == 8 && tsCenter == 2 && rightIdX != x)
+                    {
+                        areaOut[id] = 0;
+                        return;
+                    }
+
+                    // if bottom cell receives
+                    if(bot == 1 && tsCenter == 4 && botIdY != y)
+                    {
+                        areaOut[id] = 0;
+                        return;
+                    }
+
+                    // if left cell receives
+                    if(left == 2 && tsCenter == 8 && leftIdX != x)
+                    {
+                        areaOut[id] = 0;
+                        return;
+                    }    
                 }
-
-                if(botIdY != y)
-                {
-                    if(bot == 1)
-                        matter+=PLAY_AREA_QUANTUM_STRENGTH;
-
-                    if(bot == 16)
-                        matter-=PLAY_AREA_QUANTUM_STRENGTH;
-                }
-
-                if(leftIdX != x)
-                {
-                    if(left == 2)
-                        matter+=PLAY_AREA_QUANTUM_STRENGTH;
-
-                    if(left == 32)
-                        matter-=PLAY_AREA_QUANTUM_STRENGTH;
-                }
-
-                areaOut[id] = areaIn[id] + matter;
-
+                areaOut[id]=center;
             }
         )", "moveSand");
-
         Reset();
 
     }
@@ -327,8 +504,10 @@ public:
 
     void CalcFallingSand()
     {
-        _computer->compute(*_parameterSand, "computeSand", 0, _totalCells, 256);
+        _computer->compute(*_parameterGuess1, "guessParticleTarget", 0, _totalCells, 256);
         _areaTargetSourceOut->copyDataToPtr(_areaTargetSourceIn->accessPtr<unsigned char>(0));
+        _computer->compute(*_parameterGuess2, "pickOneTargetGuess", 0, _totalCells, 256);
+        _areaTargetSourceOut2->copyDataToPtr(_areaTargetSourceIn2->accessPtr<unsigned char>(0));
         _computer->compute(*_parameterSandMove, "moveSand", 0, _totalCells, 256);
         _areaOut->copyDataToPtr(_areaIn->accessPtr<unsigned char>(0));
 
@@ -344,7 +523,7 @@ public:
                 {
                     auto id = x + i + (y + j) * _width;
                     if (_areaIn->access<unsigned char>(id) < 200)
-                        _areaIn->access<unsigned char>(id)+=5;                    
+                        _areaIn->access<unsigned char>(id)=1;                    
                 }
     }
 
@@ -371,9 +550,9 @@ public:
                         for (int i = 0; i < frame.cols; i++)
                         {
                             unsigned char matter = _areaOut->access<unsigned char>(i + j * _width);
-                            frame.at<cv::Vec3b>(i + j * _width).val[0] = matter;
+                            frame.at<cv::Vec3b>(i + j * _width).val[0] = matter*200;
                             frame.at<cv::Vec3b>(i + j * _width).val[1] = matter;
-                            frame.at<cv::Vec3b>(i + j * _width).val[2] = matter;
+                            frame.at<cv::Vec3b>(i + j * _width).val[2] = matter*200;
                             tot += matter;
                         }
                     }
