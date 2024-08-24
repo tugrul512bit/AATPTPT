@@ -131,9 +131,10 @@ public:
 
         
         _computer->compile(_defineMacros + R"(
-    
+            
 
-            // todo: compute 5x5 neighborhood
+            // todo: weighted probabilities
+            // a side with empty cell will have more probability to be filled
             kernel void guessParticleTarget(
                 const global unsigned char * __restrict__ areaIn, 
                 global unsigned int * __restrict__ randomSeedState,
@@ -179,7 +180,7 @@ public:
                 }
                 if(matter == 1 && right == 0 && rightIdX != x)
                 {
-                    totProb+=3;
+                    totProb+=4;
                 }
                 if(matter == 1 && bot == 0 && botIdY != y)
                 {
@@ -187,7 +188,7 @@ public:
                 }
                 if(matter == 1 && left == 0 && leftIdX != x)
                 {
-                    totProb+=3;
+                    totProb+=4;
                 }                
 
                 
@@ -211,7 +212,7 @@ public:
 
                 if(matter == 1 && right == 0 && rightIdX != x)
                 {
-                    tot+=3;
+                    tot+=4;
                     if(selected<tot)
                     {
                         areaTargetSourceOut[id]=2;
@@ -233,7 +234,7 @@ public:
 
                 if(matter == 1 && left == 0 && leftIdX != x)
                 {
-                    tot+=3;
+                    tot+=4;
                     if(selected<tot)
                     {
                         areaTargetSourceOut[id]=8;
@@ -298,7 +299,7 @@ public:
                 if(rightIdX != x)
                 {
                     if(right == 8)
-                        totProb +=3;
+                        totProb +=4;
                 }
 
                 if(botIdY != y)
@@ -310,7 +311,7 @@ public:
                 if(leftIdX != x)
                 {
                     if(left == 2)
-                        totProb +=3;
+                        totProb +=4;
                 }
 
                 const int selected = floor(randomFloat(&randomSeed) * totProb);
@@ -332,7 +333,7 @@ public:
                 if(rightIdX != x)
                 {
                     if(right == 8)
-                        tot +=3;
+                        tot +=4;
 
                     if(selected<tot)
                     {
@@ -358,7 +359,7 @@ public:
                 if(leftIdX != x)
                 {
                     if(left == 2)
-                        tot +=3;
+                        tot +=4;
 
                     if(selected<tot)
                     {
@@ -367,7 +368,7 @@ public:
                         return;
                     }
                 }             
-
+                areaTargetSourceOut2[id]=0;
             }
         )", "pickOneTargetGuess");
 
@@ -550,9 +551,9 @@ public:
                         for (int i = 0; i < frame.cols; i++)
                         {
                             unsigned char matter = _areaOut->access<unsigned char>(i + j * _width);
-                            frame.at<cv::Vec3b>(i + j * _width).val[0] = matter*200;
-                            frame.at<cv::Vec3b>(i + j * _width).val[1] = matter;
-                            frame.at<cv::Vec3b>(i + j * _width).val[2] = matter*200;
+                            frame.at<cv::Vec3b>(i + j * _width).val[0] = 0;
+                            frame.at<cv::Vec3b>(i + j * _width).val[1] = matter*200;
+                            frame.at<cv::Vec3b>(i + j * _width).val[2] = 0;
                             tot += matter;
                         }
                     }

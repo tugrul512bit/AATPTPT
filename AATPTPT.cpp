@@ -35,12 +35,12 @@ int main()
 {
 
     int w = 1600;
-    int h = 300;
+    int h = 900;
     Mouse mouse;
 
 
     int maxGPUs = 2; // some systems have duplicated drivers that become an issue for pcie-bandwidth utilization. To limit maximum number of gpus to use, use this value.
-    int stepsPerFrame = 5;
+    int stepsPerFrame = 10;
     int quantumStrength = 1;
     PlayArea area(w,h,maxGPUs,stepsPerFrame,quantumStrength);
     
