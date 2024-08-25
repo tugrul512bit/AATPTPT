@@ -17,6 +17,8 @@ private:
     std::shared_ptr<GPGPU::HostParameter> _areaTargetSourceIn2;
     std::shared_ptr<GPGPU::HostParameter> _areaTargetSourceOut;
     std::shared_ptr<GPGPU::HostParameter> _areaTargetSourceOut2;
+    std::shared_ptr<GPGPU::HostParameter> _areaPressureIn;
+    std::shared_ptr<GPGPU::HostParameter> _areaPressureOut;
 
     std::shared_ptr<GPGPU::HostParameter> _randomSeedIn;
     std::shared_ptr<GPGPU::HostParameter> _randomSeedState;
@@ -62,12 +64,16 @@ public:
         _randomSeedIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned int>("randomSeedIn", _totalCells));
         _randomSeedState = std::make_shared<GPGPU::HostParameter>(_computer->createArrayState<unsigned int>("randomSeedState", _totalCells));
 
+        _areaPressureIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("areaPressureIn", _totalCells));
+        _areaPressureOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("areaPressureOut", _totalCells));
+
+
         _parametersRandomInit = std::make_shared<GPGPU::HostParameter>(
             _randomSeedIn->next(*_randomSeedState)
         );
 
         _parameterGuess1 = std::make_shared<GPGPU::HostParameter>(
-            _areaIn->next(*_randomSeedState).next(*_areaTargetSourceOut)
+            _areaIn->next(*_randomSeedState).next(*_areaTargetSourceOut).next(*_areaPressureIn)
         );
         _parameterGuess2 = std::make_shared<GPGPU::HostParameter>(
             _areaTargetSourceIn->next(*_areaTargetSourceOut2).next(*_randomSeedState)
@@ -88,6 +94,14 @@ public:
         _defineMacros += std::string("#define PLAY_AREA_QUANTUM_STRENGTH ") + std::to_string(_quantumStrength) + R"(
         )";
 
+        _defineMacros += std::string("#define PLAY_AREA_TEST_UP_PROB ") + std::to_string(1) + R"(
+        )";
+        _defineMacros += std::string("#define PLAY_AREA_TEST_RIGHT_PROB ") + std::to_string(2) + R"(
+        )";
+        _defineMacros += std::string("#define PLAY_AREA_TEST_BOT_PROB ") + std::to_string(5) + R"(
+        )";
+        _defineMacros += std::string("#define PLAY_AREA_TEST_LEFT_PROB ") + std::to_string(2) + R"(
+        )";
         _defineMacros += R"(
 
             #define UIMAXFLOATINV (2.32830644e-10f)
@@ -138,7 +152,8 @@ public:
             kernel void guessParticleTarget(
                 const global unsigned char * __restrict__ areaIn, 
                 global unsigned int * __restrict__ randomSeedState,
-                global unsigned char * __restrict__ areaTargetSourceOut
+                global unsigned char * __restrict__ areaTargetSourceOut,
+                global unsigned char * __restrict__ areaPressureIn
             ) 
             { 
                 const int id=get_global_id(0); 
@@ -176,19 +191,19 @@ public:
              
                 if(matter == 1 && top == 0 && topIdY != y)
                 {
-                    totProb++;
+                    totProb+=PLAY_AREA_TEST_UP_PROB;
                 }
                 if(matter == 1 && right == 0 && rightIdX != x)
                 {
-                    totProb+=4;
+                    totProb+=PLAY_AREA_TEST_RIGHT_PROB;
                 }
                 if(matter == 1 && bot == 0 && botIdY != y)
                 {
-                    totProb+=10;
+                    totProb+=PLAY_AREA_TEST_BOT_PROB;
                 }
                 if(matter == 1 && left == 0 && leftIdX != x)
                 {
-                    totProb+=4;
+                    totProb+=PLAY_AREA_TEST_LEFT_PROB;
                 }                
 
                 
@@ -201,7 +216,7 @@ public:
                 
                 if(matter == 1 && top == 0 && topIdY != y)
                 {
-                    tot++;
+                    tot+=PLAY_AREA_TEST_UP_PROB;
                     if(selected<tot)
                     {
                         areaTargetSourceOut[id]=1;
@@ -212,7 +227,7 @@ public:
 
                 if(matter == 1 && right == 0 && rightIdX != x)
                 {
-                    tot+=4;
+                    tot+=PLAY_AREA_TEST_RIGHT_PROB;
                     if(selected<tot)
                     {
                         areaTargetSourceOut[id]=2;
@@ -223,7 +238,7 @@ public:
 
                 if(matter == 1 && bot == 0 && botIdY != y)
                 {
-                    tot+=10;
+                    tot+=PLAY_AREA_TEST_BOT_PROB;
                     if(selected<tot)
                     {
                         areaTargetSourceOut[id]=4;
@@ -234,7 +249,7 @@ public:
 
                 if(matter == 1 && left == 0 && leftIdX != x)
                 {
-                    tot+=4;
+                    tot+=PLAY_AREA_TEST_LEFT_PROB;
                     if(selected<tot)
                     {
                         areaTargetSourceOut[id]=8;
@@ -293,25 +308,25 @@ public:
                 if(topIdY != y)
                 {
                     if(top == 4)
-                        totProb +=10;
+                        totProb +=PLAY_AREA_TEST_BOT_PROB;
                 }
 
                 if(rightIdX != x)
                 {
                     if(right == 8)
-                        totProb +=4;
+                        totProb +=PLAY_AREA_TEST_LEFT_PROB;
                 }
 
                 if(botIdY != y)
                 {
                     if(bot == 1)
-                        totProb +=1;
+                        totProb +=PLAY_AREA_TEST_UP_PROB;
                 }
 
                 if(leftIdX != x)
                 {
                     if(left == 2)
-                        totProb +=4;
+                        totProb +=PLAY_AREA_TEST_RIGHT_PROB;
                 }
 
                 const int selected = floor(randomFloat(&randomSeed) * totProb);
@@ -320,7 +335,7 @@ public:
                 if(topIdY != y)
                 {
                     if(top == 4)
-                        tot +=10;
+                        tot +=PLAY_AREA_TEST_BOT_PROB;
 
                     if(selected<tot)
                     {
@@ -333,7 +348,7 @@ public:
                 if(rightIdX != x)
                 {
                     if(right == 8)
-                        tot +=4;
+                        tot +=PLAY_AREA_TEST_LEFT_PROB;
 
                     if(selected<tot)
                     {
@@ -346,7 +361,7 @@ public:
                 if(botIdY != y)
                 {
                     if(bot == 1)
-                        tot +=1;
+                        tot +=PLAY_AREA_TEST_UP_PROB;
 
                     if(selected<tot)
                     {
@@ -359,7 +374,7 @@ public:
                 if(leftIdX != x)
                 {
                     if(left == 2)
-                        tot +=4;
+                        tot +=PLAY_AREA_TEST_RIGHT_PROB;
 
                     if(selected<tot)
                     {
@@ -523,8 +538,18 @@ public:
                 if (x + i >= 0 && x + i < _width && y + j >= 0 && y + j < _height)
                 {
                     auto id = x + i + (y + j) * _width;
-                    if (_areaIn->access<unsigned char>(id) < 200)
-                        _areaIn->access<unsigned char>(id)=1;                    
+                    _areaIn->access<unsigned char>(id)=1;                    
+                }
+    }
+
+    void RemoveSandFromCursorPosition(int x, int y)
+    {
+        for (int j = -15; j <= 15; j++)
+            for (int i = -15; i <= 15; i++)
+                if (x + i >= 0 && x + i < _width && y + j >= 0 && y + j < _height)
+                {
+                    auto id = x + i + (y + j) * _width;
+                   _areaIn->access<unsigned char>(id) = 0;
                 }
     }
 

@@ -8,8 +8,10 @@
 struct Mouse
 {
     bool click;
+    bool clickr;
+    bool shift;
     float x, y;
-    Mouse() { click = false; x = 0; y = 0; }
+    Mouse() { clickr = false;  click = false; x = 0; y = 0; }
 
 };
 static void click(int event, int x, int y, int flags, void* param)
@@ -26,9 +28,19 @@ static void click(int event, int x, int y, int flags, void* param)
         ((Mouse*)param)->click = false;
     }
 
+    if (event == cv::EVENT_RBUTTONDOWN)
+    {
+        ((Mouse*)param)->clickr = true;
+
+    }
+    if (event == cv::EVENT_RBUTTONUP)
+    {
+        ((Mouse*)param)->clickr = false;
+    }
 
     return;
 }
+
 
 
 int main()
@@ -48,14 +60,23 @@ int main()
     std::cout << "Hello World!\n";
     
     cv::setMouseCallback("AATPTPT", click, &mouse);
-    while (cv::waitKey(1) != 27)
+    int key = 0;
+    while ((key = cv::waitKey(1)) != 27)
     {
-    
+
         if (mouse.click)
-        {
             area.AddSandToCursorPosition(mouse.x, mouse.y);
+
+
+
+        if(mouse.clickr)
+            area.RemoveSandFromCursorPosition(mouse.x, mouse.y);
+
+        if (key == 'r')
+        {
+            area.Reset();
         }
-    
+
         area.Calc();
         area.Render();
         
