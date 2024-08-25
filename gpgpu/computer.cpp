@@ -69,9 +69,13 @@ namespace GPGPU
 			{
 				selectedDevices = allDevices;
 			}
-			else
+			else if (selectionIndex<allDevices.size())
 			{
 				selectedDevices.push_back(allDevices[selectionIndex]);
+			}
+			else
+			{
+				selectedDevices.push_back(allDevices[allDevices.size()-1]);
 			}
 
 			for (int i = 0; i < selectedDevices.size(); i++)

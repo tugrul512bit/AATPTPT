@@ -50,11 +50,23 @@ int main()
     int h = 900;
     Mouse mouse;
 
+    // currently only 1 GPU supported
+    int maxGPUs = 1; 
 
-    int maxGPUs = 2; // some systems have duplicated drivers that become an issue for pcie-bandwidth utilization. To limit maximum number of gpus to use, use this value.
-    int stepsPerFrame = 10;
+    // change this if you have an iGPU and a dGPU. discrete GPUs are generally faster because of high bandwidth memory
+    // if there are 2 gpus in system, index can be 0 or 1 but if a greater index is given then it picks last device
+    int indexGPU = 2; 
+
+
+    // rtx-4070 can do 20000 steps per second, this makes 100 updates per second (sand falls at 100 pixels per update speed)
+    // iGPU of Ryzen 7000 series CPU can do 500 steps per second
+    // Ryzen 7900 CPU cores can do 1200 steps per second
+    int stepsPerFrame = 200; 
+
+    // doesn't work yet
     int quantumStrength = 1;
-    PlayArea area(w,h,maxGPUs,stepsPerFrame,quantumStrength);
+
+    PlayArea area(w,h,maxGPUs, indexGPU,stepsPerFrame,quantumStrength);
     
 
     std::cout << "Hello World!\n";
