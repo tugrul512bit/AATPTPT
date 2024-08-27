@@ -31,3 +31,16 @@ Discrete GPUs would not lose much performance by adding new particles because cu
 ## OpenCL
 
 All parallelization is made through OpenCL and many hardware vendors support it. 
+
+
+## New Ideas
+
+### Pressure for simulating water could be a cellular-automata too
+
+Cons: 
+- it will have a latency of traveling through cells (20k updates per second is fast enough but low-end GPUs would need optimization)
+- may not behave very realistic (may not reach equal heights in two tubes connected)
+- 
+Pros: 
+- embarrassingly parallel, fully scalable from GT1030 to RTX4090 just like another sand simulation
+- different phases of materials on macro-cosmos can be observed from simple rules defined in micro-cosmos (3x3 neighnoring cells interacting, trading values) without any hard-coded rules
