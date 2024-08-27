@@ -3,7 +3,7 @@ An Attempt To Parallelize The Powder Toy. This project will have OpenCL accelera
 
 ## Parallel algorithm is simple
 
-###kernel 1
+### kernel 1
 - for each pixel or cell that can store a single sand particle, compute a random direction to move to imitate probabilistic state of movement to make it look like solid, liquid or gas
 - sand can move to only an empty spot on closest neighbors so only from those available points a single target is chosen, written to a variable in cell
 
@@ -23,3 +23,9 @@ There is also another kernel to do ping-ponging buffers to not cause any race-co
 ## Performance
 
 RTX 4070 can do ~20k updates per second. Ryzen 7900 has 1200 updates per second. Integrated-GPU of Ryzen 7900 has 500 updates per second.
+
+Extra performance can be gained by using 1 bit per pixel if there is only sand type of particle. Currently each pixel uses 1 byte so its possible to identify 255 different particle types.
+
+## OpenCL
+
+All parallelization is made through OpenCL and many hardware vendors support it. 
