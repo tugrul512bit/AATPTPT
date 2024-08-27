@@ -20,11 +20,13 @@ An Attempt To Parallelize The Powder Toy. This project will have OpenCL accelera
 
 There is also another kernel to do ping-ponging buffers to not cause any race-condition on updates on variables. Because all cells need to work on the original data, not updated data. This eliminates any bias-based artifacts.
 
-## Performance
+## Performance for 1600x900 cells
 
 RTX 4070 can do ~20k updates per second. Ryzen 7900 has 1200 updates per second. Integrated-GPU of Ryzen 7900 has 500 updates per second.
 
 Extra performance can be gained by using 1 bit per pixel if there is only sand type of particle. Currently each pixel uses 1 byte so its possible to identify 255 different particle types.
+
+Discrete GPUs would not lose much performance by adding new particles because currently it is bottlenecked by kernel-launch latency (10s of microseconds) and memory/cache bandwidth (100s of GB/s in RTX4070)
 
 ## OpenCL
 
