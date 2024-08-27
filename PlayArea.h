@@ -37,6 +37,9 @@ private:
     size_t _frameTime;
     int _numComputePerFrame;
     int _quantumStrength;
+
+    std::vector<GPGPU::HostParameter> _listPrm;
+    std::vector<std::string> _listKernel;
 public:
     // width and height must be multiple of 16
     PlayArea(int & width, int & height, int maximumGPUsToUse = 10, int indexGPU=0,  int numStepsPerFrame=10, int quantumStrength=1)
@@ -60,7 +63,7 @@ public:
         _areaIn = std::make_shared<GPGPU::HostParameter>(_computer->createArrayInput<unsigned char>("areaIn", _totalCells));
         _areaState = std::make_shared<GPGPU::HostParameter>(_computer->createArrayState<unsigned char>("areaState", _totalCells));
         _areaState2 = std::make_shared<GPGPU::HostParameter>(_computer->createArrayState<unsigned char>("areaState2", _totalCells));
-        _areaOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutput<unsigned char>("areaOut", _totalCells));
+        _areaOut = std::make_shared<GPGPU::HostParameter>(_computer->createArrayOutputAll<unsigned char>("areaOut", _totalCells));
         _areaTargetSource = std::make_shared<GPGPU::HostParameter>(_computer->createArrayState<unsigned char>("areaTargetSource", _totalCells));
         _areaTargetSource2 = std::make_shared<GPGPU::HostParameter>(_computer->createArrayState<unsigned char>("areaTargetSource2", _totalCells));
         
@@ -110,11 +113,11 @@ public:
 
         _defineMacros += std::string("#define PLAY_AREA_TEST_UP_PROB ") + std::to_string(1) + R"(
         )";
-        _defineMacros += std::string("#define PLAY_AREA_TEST_RIGHT_PROB ") + std::to_string(3) + R"(
+        _defineMacros += std::string("#define PLAY_AREA_TEST_RIGHT_PROB ") + std::to_string(14) + R"(
         )";
         _defineMacros += std::string("#define PLAY_AREA_TEST_BOT_PROB ") + std::to_string(15) + R"(
         )";
-        _defineMacros += std::string("#define PLAY_AREA_TEST_LEFT_PROB ") + std::to_string(3) + R"(
+        _defineMacros += std::string("#define PLAY_AREA_TEST_LEFT_PROB ") + std::to_string(14) + R"(
         )";
         _defineMacros += R"(
 
@@ -562,8 +565,7 @@ public:
         }
     } 
 
-    std::vector<GPGPU::HostParameter> _listPrm;
-    std::vector<std::string> _listKernel;
+
     void PrepareGpuParameterList()
     {
         for (int i = 0; i < _numComputePerFrame; i++)
@@ -650,7 +652,8 @@ public:
             for (auto& e : thr)
                 e.join();
             cv::putText(frame, std::string("compute(")+std::to_string(_numComputePerFrame) + std::string(" steps): ") + std::to_string(_frameTime / 1000000000.0) + std::string(" seconds"), cv::Point2f(46, 76), 1, 4, cv::Scalar(50, 59, 69));
-            cv::putText(frame, std::string("matter: ") + std::to_string(total.load()), cv::Point2f(46, 126), 1, 4, cv::Scalar(50, 59, 69));
+            cv::putText(frame, std::string("steps per second: ") + std::to_string(_numComputePerFrame/(_frameTime / 1000000000.0)), cv::Point2f(46, 126), 1, 4, cv::Scalar(50, 59, 69));
+            cv::putText(frame, std::string("matter: ") + std::to_string(total.load()), cv::Point2f(46, 176), 1, 4, cv::Scalar(50, 59, 69));
             cv::imshow("AATPTPT", frame);
 
         }

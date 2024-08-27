@@ -69,7 +69,7 @@ namespace GPGPU
 			{
 				selectedDevices = allDevices;
 			}
-			else if (selectionIndex<allDevices.size())
+			else if(selectionIndex < allDevices.size())
 			{
 				selectedDevices.push_back(allDevices[selectionIndex]);
 			}
@@ -155,8 +155,30 @@ namespace GPGPU
 					it2->second = parameterPosition;
 					sendToThreads = true;
 				}
-
-				// if parameter position did not change, do nothing
+				else
+				{
+					// if another parameter had same position, then remove it and update
+					for (auto it = it1->second.cbegin(); it != it1->second.cend();)
+					{
+						bool del = false;
+						if (it->second == parameterPosition)
+						{
+							if (it->first != parameterName)
+							{
+								sendToThreads = true;
+								del = true;
+							}
+						}
+						if (del)
+						{
+							it1->second.erase(it++);
+						}
+						else
+						{
+							++it;
+						}
+					}
+				}
 			}
 		}
 

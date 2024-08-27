@@ -41,6 +41,8 @@ namespace GPGPU
 		bool readOp;
 		bool writeOp;
 		bool readAllOp;
+		bool writeAllOp;
+		bool scalar;
 	public:
 		HostParameter(
 			std::string parameterName = "",
@@ -49,8 +51,12 @@ namespace GPGPU
 			size_t elementsPerThread = 1,
 			bool read = false,
 			bool write = false,
-			bool readAll = false
+			bool readAll = false,
+			bool writeAll = false,
+			bool isScalar = false
 		);
+
+		const bool isScalar() const { return scalar; }
 
 		// operator overloading from char buffer
 		template<typename T>
@@ -130,6 +136,8 @@ namespace GPGPU
 			readOp=hPrm.readOp;
 			writeOp=hPrm.writeOp;
 			readAllOp=hPrm.readAllOp;
+			writeAllOp = hPrm.writeAllOp;
+			scalar = hPrm.scalar;
 		}
 
 	};
@@ -152,7 +160,10 @@ namespace GPGPU_LIB
 		bool readOp;
 		bool writeOp;
 		bool readAll;
+		bool writeAll;	
+		bool scalar;
 		Parameter(Context con = Context(), GPGPU::HostParameter hostParameter = GPGPU::HostParameter());
+		const bool isScalar() const { return scalar;  }
 	};
 
 

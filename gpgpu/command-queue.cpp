@@ -23,8 +23,17 @@ namespace GPGPU_LIB
 	{
 		cl_int op = 0;
 		kernel.mapParameterNameToParameter[prm.name] = prm;
-		op = kernel.kernel.setArg(idx, prm.buffer);
 		
+			
+		cl::size_type st = prm.elementSize;	
+		if (prm.n == 1 && prm.isScalar())
+		{
+			
+			kernel.kernel.setArg(idx, st, prm.hostPrm.quickPtr);
+		}
+		else
+			op = kernel.kernel.setArg(idx, prm.buffer);
+
 		if (op != CL_SUCCESS)
 		{
 			throw std::invalid_argument(std::string("setArg error: ") + getErrorString(op));
@@ -39,7 +48,7 @@ namespace GPGPU_LIB
 			{				
 				if (e.second.readOp)
 				{
-
+					
 					cl_int op = queue.enqueueWriteBuffer(
 						e.second.buffer,
 						CL_FALSE,
@@ -64,7 +73,7 @@ namespace GPGPU_LIB
 
 				if (e.second.readOp)
 				{
-
+					
 					cl_int op;
 					void* ptrMap = queue.enqueueMapBuffer(
 						e.second.buffer,
@@ -98,16 +107,14 @@ namespace GPGPU_LIB
 		if (!sharesRAM)
 		{
 			for (auto& e : kernel.mapParameterNameToParameter)
-			{
-
+			{			
 				if (e.second.writeOp)
 				{
-
 					cl_int op = queue.enqueueReadBuffer(
 						e.second.buffer,
 						CL_FALSE,
-						(globalOffset * e.second.elementSize * e.second.elementsPerThread + offsetElement * e.second.elementSize * e.second.elementsPerThread),
-						(numElement * e.second.elementSize * e.second.elementsPerThread),
+						e.second.writeAll?0:(globalOffset * e.second.elementSize * e.second.elementsPerThread + offsetElement * e.second.elementSize * e.second.elementsPerThread),
+						e.second.writeAll?(e.second.elementSize*e.second.n):(numElement * e.second.elementSize * e.second.elementsPerThread),
 						e.second.hostPrm.quickPtr +
 						(
 							(globalOffset * e.second.elementSize * e.second.elementsPerThread + offsetElement * e.second.elementSize * e.second.elementsPerThread)
@@ -136,8 +143,8 @@ namespace GPGPU_LIB
 						e.second.buffer,
 						CL_FALSE,
 						CL_MAP_READ,
-						(globalOffset * e.second.elementSize * e.second.elementsPerThread + offsetElement * e.second.elementSize * e.second.elementsPerThread),
-						(numElement * e.second.elementSize * e.second.elementsPerThread),
+						e.second.writeAll?0:(globalOffset * e.second.elementSize * e.second.elementsPerThread + offsetElement * e.second.elementSize * e.second.elementsPerThread),
+						e.second.writeAll?(e.second.elementSize * e.second.n):(numElement * e.second.elementSize * e.second.elementsPerThread),
 						nullptr,
 						nullptr,
 						&op
