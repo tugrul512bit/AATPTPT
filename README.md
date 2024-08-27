@@ -40,7 +40,10 @@ All parallelization is made through OpenCL and many hardware vendors support it.
 Cons: 
 - it will have a latency of traveling through cells (20k updates per second is fast enough but low-end GPUs would need optimization)
 - may not behave very realistic (may not reach equal heights in two tubes connected)
-- 
+- it requires another byte per cell at least (256 different pressure levels)
+- requires extra thinking about all possible states of pressures around a sand particle before coding
 Pros: 
 - embarrassingly parallel, fully scalable from GT1030 to RTX4090 just like another sand simulation
 - different phases of materials on macro-cosmos can be observed from simple rules defined in micro-cosmos (3x3 neighnoring cells interacting, trading values) without any hard-coded rules
+- pressure can change the probability of a particle moving towards a direction so it can have an illusion of "movement speed" with a high-enough updates per second
+- requires less coding (assuming thinking is complete) & bandwidth than a conventional pressure-solver (32bit float too bad for bandwidth)
