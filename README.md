@@ -47,3 +47,11 @@ Pros:
 - different phases of materials on macro-cosmos can be observed from simple rules defined in micro-cosmos (3x3 neighnoring cells interacting, trading values) without any hard-coded rules
 - pressure can change the probability of a particle moving towards a direction so it can have an illusion of "movement speed" with a high-enough updates per second
 - requires less coding (assuming thinking is complete) & bandwidth than a conventional pressure-solver (32bit float too bad for bandwidth)
+
+  ## System Requirements
+
+  - GPU or CPU that supports OpenCL (for accelerating kernel codes with more pipelines, cores)
+  - MSVC 2022, VCPKG enabled, C++17 (already in project settings, it should work directly as it is)
+  - OpenCL (VCPKG installs this automatically)
+  - OpenCV (VCPKG installs this automatically)
+  - Perhaps GCC in Ubuntu works too, but the important part is OpenCL and is not affected by the quality of host-side compiler
